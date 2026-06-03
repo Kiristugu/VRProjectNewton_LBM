@@ -32,7 +32,8 @@ class FluidGridLbmModel(FluidGridModelBase):
 
     @property
     def tau(self) -> float:
-        return self.nu / 3.0 + 0.5
+        # nu = c_s^2 (tau - 0.5), c_s^2 = 1/3 in D3Q19 lattice units
+        return 3.0 * self.nu + 0.5
 
     @property
     def omega(self) -> float:

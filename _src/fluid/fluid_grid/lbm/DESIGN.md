@@ -26,7 +26,7 @@
 | 格子 | D3Q19，$Q=19$ |
 | 碰撞 | 第 1–3 周：BGK；MRT **不纳入 4 周排期**（future work） |
 | 迁移 | **Pull**（与 taichi `streaming1` 一致），见 §4.1 |
-| 单位 | **全程格子单位**：$\Delta x = \Delta t = 1$，$\tau = \nu/3 + 0.5$；与 taichi 对照前禁止混用物理单位 |
+| 单位 | **全程格子单位**：$\Delta x = \Delta t = 1$，$\nu = c_s^2(\tau-0.5)$，$\tau = 3\nu + 0.5$；与 taichi 对照前禁止混用物理单位 |
 
 ### 2.1 与现有 `fluid_grid` 子模块对比
 
@@ -137,7 +137,7 @@ class FluidGridLbmModel(FluidGridModelBase):
 
     @property
     def tau(self) -> float:
-        return self.nu / 3.0 + 0.5
+        return 3.0 * self.nu + 0.5
 
     @property
     def omega(self) -> float:
