@@ -36,7 +36,7 @@ class FluidGridLbmSolver(FluidGridSolverBase):
         contacts: Any | None = None,
         control: Any | None = None,
     ) -> None:
-        """Advance one LBM step: collide → stream → BC → macro (DESIGN.md §4)."""
+        """Advance one LBM step: collide → stream → BC → macro → swap (DESIGN.md §4)."""
         del dt, contacts, control
 
         wp.launch(
@@ -79,7 +79,6 @@ class FluidGridLbmSolver(FluidGridSolverBase):
             dim=self._grid_dim,
             inputs=[
                 state_out.F,
-                state_out.f,
                 state_out.rho,
                 state_out.v,
                 state_in.solid,
@@ -89,7 +88,12 @@ class FluidGridLbmSolver(FluidGridSolverBase):
             device=self.device,
         )
 
+        self._swap_buffers(state_out)
         wp.copy(state_out.solid, state_in.solid)
+
+    def _swap_buffers(self, state: FluidGridLbmState) -> None:
+        """Exchange f and F after macro so f holds the post-step distributions (DESIGN.md §4 step 5)."""
+        state.f, state.F = state.F, state.f
 
     def init_uniform(self, state: FluidGridLbmState, rho: float, u: wp.vec3) -> None:
         """Initialize uniform density and velocity at equilibrium."""
