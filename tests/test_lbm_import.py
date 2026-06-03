@@ -31,7 +31,8 @@ class TestLbmImport(unittest.TestCase):
 
     def test_model_tau_omega(self) -> None:
         model: FluidGridLbmModel = FluidGridLbmModel(fluid_grid_res=(16, 16, 16), nu=0.16667)
-        self.assertAlmostEqual(model.tau, 0.16667 / 3.0 + 0.5)
+        self.assertAlmostEqual(model.tau, 3.0 * 0.16667 + 0.5, places=4)
+        self.assertAlmostEqual(model.tau, 1.0, places=3)
         self.assertAlmostEqual(model.omega, 1.0 / model.tau)
 
     def test_state_allocation(self) -> None:
