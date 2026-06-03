@@ -73,13 +73,13 @@ def stream_pull_identity(
 @wp.kernel
 def update_macro(
     F: wp.array4d(dtype=float),
-    f: wp.array4d(dtype=float),
     rho: wp.array3d(dtype=float),
     v: wp.array3d(dtype=wp.vec3),
     solid: wp.array3d(dtype=wp.int32),
     force: wp.vec3,
     use_guo: int,
 ) -> None:
+    """Compute rho and u from post-stream/BC distributions in F (DESIGN.md §4 step 4)."""
     i, j, k = wp.tid()
     if solid[i, j, k] != 0:
         rho[i, j, k] = 1.0
@@ -98,9 +98,6 @@ def update_macro(
     if use_guo == 1:
         u += (force / 2.0) / r
     v[i, j, k] = u
-
-    for q in range(Q):
-        f[i, j, k, q] = F[i, j, k, q]
 
 
 @wp.kernel
