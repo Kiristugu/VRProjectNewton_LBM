@@ -19,6 +19,7 @@ _spec.loader.exec_module(_bootstrap)
 _bootstrap.bootstrap_from_test_file(__file__)
 
 from wanphys._src.fluid.fluid_grid.lbm.model import FluidGridLbmModel
+from wanphys._src.fluid.fluid_grid.lbm.domain import FluidGridLbmDomain
 from wanphys._src.fluid.fluid_grid.lbm.solver import FluidGridLbmSolver
 from wanphys._src.fluid.fluid_grid.lbm.state import FluidGridLbmState
 from wanphys._src.fluid.fluid_grid.lbm.lattice import Q, LR, lattice_e_host, lattice_weight_host
@@ -53,6 +54,18 @@ class TestLbmImport(unittest.TestCase):
             ei = lattice_e_host(i)
             ej = lattice_e_host(j)
             self.assertEqual(ei, (-ej[0], -ej[1], -ej[2]))
+
+    def test_lbm_package_exports_domain(self) -> None:
+        init_path: Path = (
+            Path(__file__).resolve().parents[1] / "_src" / "fluid" / "fluid_grid" / "lbm" / "__init__.py"
+        )
+        init_text: str = init_path.read_text(encoding="utf-8")
+        for symbol in ("FluidGridLbmDomain", "FluidGridLbmModel", "FluidGridLbmSolver", "FluidGridLbmState"):
+            self.assertIn(symbol, init_text)
+
+        fluid_grid_init: Path = Path(__file__).resolve().parents[1] / "_src" / "fluid" / "fluid_grid" / "__init__.py"
+        fluid_grid_text: str = fluid_grid_init.read_text(encoding="utf-8")
+        self.assertIn("FluidGridLbmDomain", fluid_grid_text)
 
     def test_solver_construct(self) -> None:
         model: FluidGridLbmModel = FluidGridLbmModel(fluid_grid_res=(8, 8, 8))
