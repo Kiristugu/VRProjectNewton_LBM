@@ -88,6 +88,16 @@ def lattice_weight_host(i: int) -> float:
     return 1.0 / 36.0
 
 
+def feq_host(i: int, rho: float, u: tuple[float, float, float]) -> float:
+    """Host-side equilibrium distribution for unit tests (DESIGN.md §6.2)."""
+    ex, ey, ez = lattice_e_host(i)
+    w = lattice_weight_host(i)
+    ux, uy, uz = u
+    eu = ex * ux + ey * uy + ez * uz
+    uv = ux * ux + uy * uy + uz * uz
+    return w * rho * (1.0 + 3.0 * eu + 4.5 * eu * eu - 1.5 * uv)
+
+
 def lattice_e_host(i: int) -> tuple[int, int, int]:
     """Host-side discrete velocity for unit tests."""
     vectors: tuple[tuple[int, int, int], ...] = (

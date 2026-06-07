@@ -3,8 +3,11 @@
 
 """LBM Warp kernels (DESIGN.md §7).
 
-§7.2 core kernels (collide / stream / macro) — owned by member B; week-1 minimal
-implementations enable M1 rest-fluid integration with member A's solver.
+Week-1 deliverables (member B, §7.1–7.2):
+  - ``init_equilibrium``  — uniform equilibrium initialization
+  - ``collide_bgk``       — BGK collision operator
+  - ``update_macro``      — density / velocity recovery from F
+  - ``stream_pull_identity`` — week-1 placeholder (no neighbour pull)
 
 §7.3 boundary kernels — owned by member C; week-1 ``apply_boundaries`` is a no-op.
 """
@@ -20,6 +23,7 @@ USE_GUO_OFF = wp.constant(0)
 
 @wp.kernel
 def init_equilibrium(
+    # Week-1 (B): set f, F, rho, v to uniform equilibrium (DESIGN.md §7.1).
     f: wp.array4d(dtype=float),
     F: wp.array4d(dtype=float),
     rho: wp.array3d(dtype=float),
@@ -41,6 +45,7 @@ def init_equilibrium(
 
 @wp.kernel
 def collide_bgk(
+    # Week-1 (B): F = f - omega * (f - feq); skip solid cells (DESIGN.md §7.2).
     f: wp.array4d(dtype=float),
     F: wp.array4d(dtype=float),
     rho: wp.array3d(dtype=float),
@@ -64,10 +69,8 @@ def stream_pull_identity(
     F: wp.array4d(dtype=float),
     solid: wp.array3d(dtype=wp.int32),
 ) -> None:
-    """Week-1 placeholder: no neighbour pull (identity stream)."""
-    i, j, k = wp.tid()
-    if solid[i, j, k] == -1:
-        F[i, j, k, 0] = F[i, j, k, 0]
+    """Week-1 placeholder: identity stream (replaced by stream_pull in week 2)."""
+    wp.tid()  # no-op: F unchanged; valid for periodic rest-fluid M1
 
 
 @wp.kernel
