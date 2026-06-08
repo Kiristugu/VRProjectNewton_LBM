@@ -1,0 +1,90 @@
+看了你们的代码和计划，**当前进度实际上已经超越了第2周末的M2目标**。让我对照计划详细分析：
+
+## 当前状态 vs 第2周末目标
+
+| 目标 | 要求 | 当前状态 | 差距 |
+|------|------|----------|------|
+| 网格 ≥32³ | 支持任意分辨率 | ✅ `model.py` 支持任意 `fluid_grid_res` | 无 |
+| 500步后主涡可见 | 流场正确 | ✅ 核心算法完整，需运行验证 | 需运行腔体测试 |
+| `fluid_grid_lbm_cavity.py` 可运行 | 示例脚本 | ❌ **未实现** | **需要写** |
+| 顶盖速度边界生效 | BC 实现 | ⚠️ `set_lid_velocity()` 有，但 `apply_boundaries` 是空壳 | **需要 C 实现真实 BC** |
+
+## 缺少的关键项
+
+### 1. **Domain 未实现**（优先级：中）
+当前没有 `FluidGridLbmDomain`，这意味着：
+- 无法使用 Newton 的标准仿真循环
+- 示例脚本需要手动管理双缓冲 swap
+
+**工作量**：参考 `basic_vortex/domain.py`，约 50 行代码。
+
+### 2. **真实边界条件未实现**（优先级：高，阻塞腔体）
+`kernels.py` 中的 `apply_boundaries` 目前是空壳（只处理了 `solid==-1` 的占位）。需要实现：
+- 顶盖速度边界（Zou-He 或简化反弹）
+- 其他壁面的无滑移 bounce-back
+- 周期边界（streaming 天然支持？需要验证）
+
+**负责人**：C（彭若扬）
+
+### 3. **真实 streaming 未实现**（优先级：中）
+当前用的是 `stream_pull_identity`（恒等映射）。第2周需要换为正式的 `stream_pull`：
+- 从邻居拉取分布函数
+- 处理固体 bounce-back（可在 BC 或 stream 中）
+- 边界处的周期/反射逻辑
+
+**负责人**：B（黄彧鸣）
+
+### 4. **cavity 示例脚本未写**（优先级：高）
+需要 `examples/fluid_grid_lbm_cavity.py`：
+- 创建 Model、State、Solver
+- 设置顶盖速度 `solver.set_lid_velocity(wp.vec3(0.1, 0.0, 0.0))`
+- 运行 N 步，输出可视化或 VTK
+
+**负责人**：C（彭若扬）
+
+## 第2周剩余时间建议（假设现在第2周中）
+
+### 立即行动（今天-明天）
+
+| 任务 | 负责人 | 预计时间 |
+|------|--------|----------|
+| 实现 `apply_boundaries`：bounce-back + 顶盖速度 | C | 4h |
+| 实现 `stream_pull` 正式版本 | B | 3h |
+| 写 `fluid_grid_lbm_cavity.py` 基础版本 | C | 2h |
+
+### 第2周末前（2-3天）
+
+| 任务 | 负责人 | 预计时间 |
+|------|--------|----------|
+| 实现 `FluidGridLbmDomain` | A | 2h |
+| 联调 cavity：跑通 500 步，验证主涡 | B+C | 2h |
+| 添加 `__init__.py` 导出 Domain | A | 0.5h |
+
+## Domain 实现参考（A 的任务）
+
+```python
+# domain.py
+class FluidGridLbmDomain(Domain):
+    name: str = "fluid_grid_lbm"
+    
+    def __init__(self, model: FluidGridLbmModel):
+        super().__init__(model)
+        self.solver = FluidGridLbmSolver(model)
+        self._state_a = FluidGridLbmState(model)
+        self._state_b = FluidGridLbmState(model)
+        self._current_state = self._state_a
+    
+    def create_state(self) -> FluidGridLbmState:
+        return self._current_state
+    
+    def step(self, dt: float, substeps: int = 1) -> None:
+        for _ in range(substeps):
+            state_in = self._state_a if self._current_state is self._state_a else self._state_b
+            state_out = self._state_b if self._current_state is self._state_a else self._state_a
+            self.solver.step(state_in, state_out, dt / substeps)
+            self._current_state = state_out
+```
+
+## 总结
+
+**你们离第2周末目标只差最后 2-3 天的代码工作**，核心算法已经到位。最阻塞的是 `apply_boundaries` 和 `cavity.py`，C 需要专注完成这两项，B 配合完成 `stream_pull`，A 完成 Domain 即可。

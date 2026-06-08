@@ -5,6 +5,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import sys
 import types
 from pathlib import Path
@@ -33,8 +34,28 @@ def bootstrap_from_test_file(test_file: str) -> Path:
     # Skip fluid/__init__.py and fluid_grid/__init__.py (pull in liquid/coupling/geometry).
     _stub_package("wanphys._src.fluid", src_dir / "fluid")
     _stub_package("wanphys._src.fluid.fluid_grid", src_dir / "fluid" / "fluid_grid")
-    _stub_package("wanphys._src.fluid.fluid_grid.lbm", src_dir / "fluid" / "fluid_grid" / "lbm")
+    lbm_dir: Path = src_dir / "fluid" / "fluid_grid" / "lbm"
+    _stub_package("wanphys._src.fluid.fluid_grid.lbm", lbm_dir)
+    _load_lbm_package(lbm_dir)
     return root
+
+
+def _load_lbm_package(lbm_dir: Path) -> None:
+    """Execute lbm/__init__.py so ``from ...lbm import FluidGridLbm*`` works."""
+    name = "wanphys._src.fluid.fluid_grid.lbm"
+    if name in sys.modules and hasattr(sys.modules[name], "FluidGridLbmDomain"):
+        return
+    init_path: Path = lbm_dir / "__init__.py"
+    spec = importlib.util.spec_from_file_location(
+        name,
+        init_path,
+        submodule_search_locations=[str(lbm_dir)],
+    )
+    if spec is None or spec.loader is None:
+        raise ImportError(f"Cannot load LBM package from {init_path}")
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    spec.loader.exec_module(module)
 
 
 def bootstrap_wanphys() -> Path:

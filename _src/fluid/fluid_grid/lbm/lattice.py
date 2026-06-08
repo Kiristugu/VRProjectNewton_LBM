@@ -70,6 +70,48 @@ def lattice_e_i(i: int) -> wp.vec3i:
 
 
 @wp.func
+def lattice_lr(i: int) -> int:
+    """Opposite direction index for bounce-back (DESIGN.md §6.3, matches LR tuple)."""
+    if i == 0:
+        return 0
+    if i == 1:
+        return 2
+    if i == 2:
+        return 1
+    if i == 3:
+        return 4
+    if i == 4:
+        return 3
+    if i == 5:
+        return 6
+    if i == 6:
+        return 5
+    if i == 7:
+        return 8
+    if i == 8:
+        return 7
+    if i == 9:
+        return 10
+    if i == 10:
+        return 9
+    if i == 11:
+        return 12
+    if i == 12:
+        return 11
+    if i == 13:
+        return 14
+    if i == 14:
+        return 13
+    if i == 15:
+        return 16
+    if i == 16:
+        return 15
+    if i == 17:
+        return 18
+    return 17
+
+
+@wp.func
 def feq(i: int, rho: float, u: wp.vec3) -> float:
     """Equilibrium distribution f_i^eq for D3Q19."""
     e = lattice_e_f(i)
