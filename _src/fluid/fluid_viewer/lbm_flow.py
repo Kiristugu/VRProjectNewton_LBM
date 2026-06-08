@@ -352,6 +352,7 @@ class LbmCavityVisualizer:
         show_volume: bool = True,
         show_boundary: bool = True,
         show_mid_plane_vectors: bool = True,
+        vector_plane: str = "xy",
         vector_stride: int = 4,
         vector_scale: float = 0.8,
     ) -> None:
@@ -361,6 +362,7 @@ class LbmCavityVisualizer:
         self.show_volume = show_volume
         self.show_boundary = show_boundary
         self.show_mid_plane_vectors = show_mid_plane_vectors
+        self.vector_plane = vector_plane
         self.vector_stride = max(1, int(vector_stride))
         self.vector_scale = float(vector_scale)
 
@@ -431,47 +433,81 @@ class LbmCavityVisualizer:
                 hidden=False,
             )
         if self.show_mid_plane_vectors:
-            self._render_mid_plane_vectors()
+            if self.vector_plane == "xy":
+                self._render_xy_plane_vectors()
+            else:
+                self._render_xz_plane_vectors()
 
-    def _render_mid_plane_vectors(self) -> None:
+    def _append_velocity_arrows(
+        self,
+        origins_vels: list[tuple[np.ndarray, np.ndarray]],
+    ) -> tuple[list[np.ndarray], list[np.ndarray], list[np.ndarray]]:
+        starts_list: list[np.ndarray] = []
+        ends_list: list[np.ndarray] = []
+        colors_list: list[np.ndarray] = []
+        ref_speed = self._volume.max_scalar if self._volume is not None else 0.1
+
+        for origin, vel in origins_vels:
+            speed = float(np.linalg.norm(vel))
+            if speed < 1.0e-5:
+                continue
+            tip = origin + vel.astype(np.float32) * self.vector_scale
+            starts_list.append(origin)
+            ends_list.append(tip)
+            t = min(1.0, speed / max(ref_speed, 1.0e-6))
+            colors_list.append(np.array([t, 0.25 * (1.0 - t), 1.0 - t], dtype=np.float32))
+
+        return starts_list, ends_list, colors_list
+
+    def _log_velocity_arrows(
+        self,
+        starts_list: list[np.ndarray],
+        ends_list: list[np.ndarray],
+        colors_list: list[np.ndarray],
+        *,
+        channel: str,
+    ) -> None:
+        if not starts_list:
+            self.viewer.log_lines(channel, None, None, None)
+            return
+        starts = wp.array(starts_list, dtype=wp.vec3, device=self.device)
+        ends = wp.array(ends_list, dtype=wp.vec3, device=self.device)
+        colors = wp.array(colors_list, dtype=wp.vec3, device=self.device)
+        self.viewer.log_lines(channel, starts=starts, ends=ends, colors=colors, width=0.003, hidden=False)
+
+    def _render_xy_plane_vectors(self) -> None:
+        """Velocity arrows on the x-y mid-plane (classic lid-driven cavity view)."""
+        v_np: np.ndarray = self.domain.state.v.numpy()
+        cs = self.cell_size
+        mid_k: int = self.nz // 2
+        stride = self.vector_stride
+
+        origins_vels: list[tuple[np.ndarray, np.ndarray]] = []
+        for i in range(0, self.nx, stride):
+            for j in range(0, self.ny, stride):
+                vel = v_np[i, j, mid_k]
+                origin = np.array([(i + 0.5) * cs, (j + 0.5) * cs, (mid_k + 0.5) * cs], dtype=np.float32)
+                origins_vels.append((origin, vel))
+
+        starts_list, ends_list, colors_list = self._append_velocity_arrows(origins_vels)
+        self._log_velocity_arrows(starts_list, ends_list, colors_list, channel="lbm/xy_plane_vectors")
+
+    def _render_xz_plane_vectors(self) -> None:
+        """Velocity arrows on the legacy x-z mid-plane (horizontal slice)."""
         v_np: np.ndarray = self.domain.state.v.numpy()
         cs = self.cell_size
         mid_j: int = self.ny // 2
         stride = self.vector_stride
 
-        starts_list: list[np.ndarray] = []
-        ends_list: list[np.ndarray] = []
-        colors_list: list[np.ndarray] = []
-
+        origins_vels: list[tuple[np.ndarray, np.ndarray]] = []
         for i in range(0, self.nx, stride):
             for k in range(0, self.nz, stride):
                 vel = v_np[i, mid_j, k]
-                speed = float(np.linalg.norm(vel))
-                if speed < 1.0e-5:
-                    continue
                 origin = np.array([(i + 0.5) * cs, (mid_j + 0.5) * cs, (k + 0.5) * cs], dtype=np.float32)
-                tip = origin + vel.astype(np.float32) * self.vector_scale
-                starts_list.append(origin)
-                ends_list.append(tip)
-                ref_speed = self._volume.max_scalar if self._volume is not None else 0.1
-                t = min(1.0, speed / max(ref_speed, 1.0e-6))
-                colors_list.append(np.array([t, 0.25 * (1.0 - t), 1.0 - t], dtype=np.float32))
+                origins_vels.append((origin, vel))
 
-        if not starts_list:
-            self.viewer.log_lines("lbm/mid_plane_vectors", None, None, None)
-            return
-
-        starts = wp.array(starts_list, dtype=wp.vec3, device=self.device)
-        ends = wp.array(ends_list, dtype=wp.vec3, device=self.device)
-        colors = wp.array(colors_list, dtype=wp.vec3, device=self.device)
-        self.viewer.log_lines(
-            "lbm/mid_plane_vectors",
-            starts=starts,
-            ends=ends,
-            colors=colors,
-            width=0.003,
-            hidden=False,
-        )
+        starts_list, ends_list, colors_list = self._append_velocity_arrows(origins_vels)
+        self._log_velocity_arrows(starts_list, ends_list, colors_list, channel="lbm/xz_plane_vectors")
 
     def setup_camera(self) -> None:
         cs = self.cell_size
