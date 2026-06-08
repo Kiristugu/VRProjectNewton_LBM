@@ -47,6 +47,10 @@ from .fluid_grid import (
     FluidGridLiquidModel,
     FluidGridLiquidSolver,
     FluidGridLiquidState,
+    FluidGridLbmDomain,
+    FluidGridLbmModel,
+    FluidGridLbmSolver,
+    FluidGridLbmState,
 )
 
 __all__ = [
@@ -76,6 +80,11 @@ __all__ = [
     "FluidGridLiquidDomain",
     "FluidGridLiquidSolver",
     "FluidGridLiquidState",
+    # lbm
+    "FluidGridLbmDomain",
+    "FluidGridLbmModel",
+    "FluidGridLbmSolver",
+    "FluidGridLbmState",
 ]
 
 

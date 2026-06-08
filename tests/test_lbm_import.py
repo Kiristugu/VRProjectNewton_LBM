@@ -18,9 +18,12 @@ _bootstrap = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(_bootstrap)
 _bootstrap.bootstrap_from_test_file(__file__)
 
-from wanphys._src.fluid.fluid_grid.lbm.model import FluidGridLbmModel
-from wanphys._src.fluid.fluid_grid.lbm.solver import FluidGridLbmSolver
-from wanphys._src.fluid.fluid_grid.lbm.state import FluidGridLbmState
+from wanphys._src.fluid.fluid_grid.lbm import (
+    FluidGridLbmDomain,
+    FluidGridLbmModel,
+    FluidGridLbmSolver,
+    FluidGridLbmState,
+)
 from wanphys._src.fluid.fluid_grid.lbm.lattice import Q, LR, lattice_e_host, lattice_weight_host
 
 
@@ -58,6 +61,11 @@ class TestLbmImport(unittest.TestCase):
         model: FluidGridLbmModel = FluidGridLbmModel(fluid_grid_res=(8, 8, 8))
         solver: FluidGridLbmSolver = FluidGridLbmSolver(model)
         self.assertEqual(solver.nx, 8)
+
+    def test_domain_export(self) -> None:
+        model: FluidGridLbmModel = FluidGridLbmModel(fluid_grid_res=(8, 8, 8))
+        domain: FluidGridLbmDomain = FluidGridLbmDomain(model)
+        self.assertEqual(domain.name, "fluid_grid_lbm")
 
 
 if __name__ == "__main__":

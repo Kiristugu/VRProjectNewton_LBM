@@ -30,6 +30,14 @@ class FluidGridLbmModel(FluidGridModelBase):
     bc_rho: float = 1.0
     bc_velocity: tuple[float, float, float] = (0.0, 0.0, 0.0)
 
+    # Per-face prescribed velocity for bc_* == 2 (matches taichi bc_vel_* vectors).
+    bc_vel_x_left: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    bc_vel_x_right: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    bc_vel_y_left: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    bc_vel_y_right: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    bc_vel_z_left: tuple[float, float, float] = (0.0, 0.0, 0.0)
+    bc_vel_z_right: tuple[float, float, float] = (0.0, 0.0, 0.0)
+
     @property
     def tau(self) -> float:
         # nu = c_s^2 (tau - 0.5), c_s^2 = 1/3 in D3Q19 lattice units
