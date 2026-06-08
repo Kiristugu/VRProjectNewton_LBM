@@ -1,10 +1,12 @@
 # LBM 模块 — 第 1 周详细解读、进度总结与下阶段计划
 
-> **版本**：1.0  
+> **版本**：1.0（归档）  
 > **日期**：2026-06-03  
 > **主责**：张弋洋（A — 架构 / 数据 / solver 编排）  
-> **依据**：[`DESIGN.md`](../WanPhys-dev/wanphys/_src/fluid/fluid_grid/lbm/DESIGN.md) v1.2、[`lbm_team_development_plan.md`](lbm_team_development_plan.md) v1.2、[`开题.md`](开题.md)  
-> **代码路径**：`WanPhys-dev/wanphys/_src/fluid/fluid_grid/lbm/`
+> **依据**：[`DESIGN.md`](../DESIGN.md) v1.2、[`lbm_team_development_plan.md`](../../../../../../../docs/lbm_team_development_plan.md) v1.2、[`开题.md`](../../../../../../../docs/开题.md)  
+> **代码路径**：`wanphys/_src/fluid/fluid_grid/lbm/`
+
+> **后续进展（M2 已完成）**：见 [`README.md`](README.md) 及 [`phase1_stream_pull.md`](phase1_stream_pull.md) → [`phase4_visualization.md`](phase4_visualization.md)。本文档保留第 1 周历史记录，不再随代码更新。
 
 ---
 
