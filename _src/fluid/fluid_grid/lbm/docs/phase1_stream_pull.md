@@ -1,6 +1,6 @@
 # 阶段 1：正式 Pull Streaming
 
-> **版本**：1.0  
+> **版本**：1.1  
 > **日期**：2026-06-08  
 > **目标**：M2 前置 — 将 `stream_pull_identity` 替换为正式 `stream_pull`，并保持 M1 静止流回归不退化  
 > **依据**：[`DESIGN.md`](../DESIGN.md) §4.1、§7.2；[`lbm_team_development_plan.md`](../../../../../../../docs/lbm_team_development_plan.md) 第 2 周
@@ -124,9 +124,15 @@ python wanphys/tests/test_lbm_rest.py
 
 ---
 
-## 7. 下一阶段预告（阶段 2 — 已完成）
+## 7. 下一阶段预告
 
-详见 [`phase2_boundaries.md`](phase2_boundaries.md)。阶段 3：`FluidGridLbmDomain` + `fluid_grid_lbm_cavity.py`。
+| 阶段 | 文档 | 状态 |
+|------|------|------|
+| 2 边界 | [`phase2_boundaries.md`](phase2_boundaries.md) | ✅ |
+| 3 Domain | [`phase3_domain_example.md`](phase3_domain_example.md) | ✅ |
+| 4 可视化 | [`phase4_visualization.md`](phase4_visualization.md) | ✅ |
+
+总览：[`README.md`](README.md)
 
 ---
 
@@ -135,3 +141,4 @@ python wanphys/tests/test_lbm_rest.py
 | 版本 | 日期 | 说明 |
 |------|------|------|
 | 1.0 | 2026-06-08 | 初版；阶段 1 stream_pull 实现与 τ 公式勘误 |
+| 1.1 | 2026-06-08 | 补全后续阶段链接 |

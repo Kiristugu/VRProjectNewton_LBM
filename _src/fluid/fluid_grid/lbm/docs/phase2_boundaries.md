@@ -1,6 +1,6 @@
 # 阶段 2：边界条件 + 腔体 BC 配置
 
-> **版本**：1.0  
+> **版本**：1.1  
 > **日期**：2026-06-08  
 > **目标**：实现 `apply_boundaries`，提供 `configure_cavity_walls` / `set_lid_velocity`，为 M2 腔体示例做准备  
 > **前置**：阶段 1 `stream_pull`（[`phase1_stream_pull.md`](phase1_stream_pull.md)）  
@@ -13,7 +13,7 @@
 | 包含 | 不包含（阶段 3+） |
 |------|------------------|
 | `apply_boundaries` 六面 BC | `FluidGridLbmDomain` |
-| 面速度型 / 压力型 BC（taichi 简化 equilibrium） | `fluid_grid_lbm_cavity.py` 完整可视化 |
+| 面速度型 / 压力型 BC（taichi 简化 equilibrium） | matplotlib / VTK / GL 可视化（见阶段 4） |
 | `configure_cavity_walls()` + `set_lid_velocity()` | `bake_box` / 障碍固体 |
 | 每面独立 `bc_vel_*` 字段 | 完整 Zou–He 反推公式 |
 | `test_cavity_smoke.py` | taichi 数值对照 |
@@ -106,9 +106,14 @@ python wanphys/tests/test_cavity_smoke.py
 
 ---
 
-## 7. 下一阶段预告（阶段 3 — 已完成）
+## 7. 下一阶段预告
 
-详见 [`phase3_domain_example.md`](phase3_domain_example.md)。
+| 阶段 | 文档 | 状态 |
+|------|------|------|
+| 3 Domain + 示例 | [`phase3_domain_example.md`](phase3_domain_example.md) | ✅ |
+| 4 可视化 | [`phase4_visualization.md`](phase4_visualization.md) | ✅ |
+
+总览：[`README.md`](README.md)
 
 ---
 
@@ -117,3 +122,4 @@ python wanphys/tests/test_cavity_smoke.py
 | 版本 | 日期 | 说明 |
 |------|------|------|
 | 1.0 | 2026-06-08 | 阶段 2 边界条件与腔体 BC API |
+| 1.1 | 2026-06-08 | 可视化归入阶段 4；补文档交叉链接 |
