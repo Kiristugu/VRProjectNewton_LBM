@@ -72,6 +72,7 @@ from wanphys._src.fluid.fluid_grid.lbm import (  # noqa: E402
     FluidGridLbmDomain,
     FluidGridLbmModel,
 )
+from wanphys._src.fluid.fluid_grid.lbm.cavity_plot import plot_lid_driven_cavity  # noqa: E402
 from wanphys._src.fluid.fluid_grid.lbm.vtk_export import export_structured_vtk  # noqa: E402
 
 
@@ -83,36 +84,6 @@ def _init_viewer(parser: argparse.ArgumentParser, use_gl_viewer: bool):
     import newton.examples
 
     return newton.examples.init(parser)
-
-
-def _save_velocity_slice_png(path: str | Path, velocity: np.ndarray, mid_j: int, u_lid: float) -> None:
-    try:
-        import matplotlib.pyplot as plt
-    except ImportError as exc:
-        raise ImportError("matplotlib is required for --save-slice (pip install matplotlib)") from exc
-
-    ux_slice: np.ndarray = velocity[:, mid_j, :, 0]
-    speed_slice: np.ndarray = np.linalg.norm(velocity[:, mid_j, :, :], axis=-1)
-
-    fig, axes = plt.subplots(1, 2, figsize=(10, 4))
-    im0 = axes[0].imshow(ux_slice.T, origin="lower", cmap="RdBu_r", vmin=-0.05, vmax=u_lid)
-    axes[0].set_title(f"u_x @ j={mid_j}")
-    axes[0].set_xlabel("i")
-    axes[0].set_ylabel("k")
-    fig.colorbar(im0, ax=axes[0], fraction=0.046)
-
-    im1 = axes[1].imshow(speed_slice.T, origin="lower", cmap="viridis")
-    axes[1].set_title("|u| mid-plane")
-    axes[1].set_xlabel("i")
-    axes[1].set_ylabel("k")
-    fig.colorbar(im1, ax=axes[1], fraction=0.046)
-
-    fig.tight_layout()
-    out = Path(path)
-    out.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out, dpi=150)
-    plt.close(fig)
-    print(f"Saved mid-plane slice: {out}")
 
 
 class Example:
@@ -218,9 +189,17 @@ class Example:
             )
             print(f"Exported VTK: {self.args.export_vtk}")
 
-        if self.args.save_slice:
-            mid_j: int = self._grid_size // 2
-            _save_velocity_slice_png(self.args.save_slice, v_np, mid_j, self._u_lid)
+        if self.args.save_slice or self.args.show_plot:
+            plot_lid_driven_cavity(
+                v_np,
+                rho=rho_np if self.args.scalar_field == "rho" else None,
+                cell_size=self._cell_size,
+                slice_k=self.args.slice_k if self.args.slice_k >= 0 else None,
+                scalar_mode=self.args.scalar_field,
+                u_lid=self._u_lid,
+                path=self.args.save_slice or None,
+                show=self.args.show_plot,
+            )
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -233,7 +212,26 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--cell-size", type=float, default=1.0, help="Cell size for viewer/VTK (lattice units).")
     parser.add_argument("--warmup-steps", type=int, default=200, help="LBM steps before GL rendering starts.")
     parser.add_argument("--export-vtk", type=str, default="", help="Write ParaView VTK on completion.")
-    parser.add_argument("--save-slice", type=str, default="", help="Save mid-y u_x/|u| PNG (needs matplotlib).")
+    parser.add_argument(
+        "--save-slice",
+        type=str,
+        default="",
+        help="Save x-y mid-plane streamplot PNG (contourf + streamlines, needs matplotlib).",
+    )
+    parser.add_argument("--show-plot", action="store_true", help="Show matplotlib cavity plot after simulation.")
+    parser.add_argument(
+        "--slice-k",
+        type=int,
+        default=-1,
+        help="z-index for x-y slice (-1 = nz//2). Lid is at y=ny-1.",
+    )
+    parser.add_argument(
+        "--scalar-field",
+        type=str,
+        default="speed",
+        choices=("speed", "ux", "rho"),
+        help="Scalar background for contourf.",
+    )
     parser.add_argument("--no-volume", action="store_true", help="Disable |u| volume rendering (GL only).")
     parser.add_argument("--no-boundary", action="store_true", help="Disable cavity wireframe (GL only).")
     parser.add_argument("--no-vectors", action="store_true", help="Disable mid-plane velocity vectors (GL only).")
