@@ -50,6 +50,7 @@ Newton **没有内置 LBM**。大作业是在 WanPhys 上**自研** D3Q19-BGK �
 | 2 | [`phase2_boundaries.md`](phase2_boundaries.md) | 六面 BC、顶盖 `set_lid_velocity` | ✅ |
 | 3 | [`phase3_domain_example.md`](phase3_domain_example.md) | Domain、示例脚本、M2 验收 | ✅ |
 | 4 | [`phase4_visualization.md`](phase4_visualization.md) | GL / VTK / matplotlib 出图 | ✅ |
+| 5 | [`post_midterm_plan.md`](post_midterm_plan.md) | **1 周冲刺**：绕障 → TRT → ρ 着色 GL | 🔄 进行中 |
 | — | [`lbm_week1_report_A.md`](lbm_week1_report_A.md) | 第 1 周架构解读（历史记录） | 归档 |
 
 ---
@@ -95,8 +96,7 @@ python wanphys/examples/fluid_grid_lbm_cavity.py --viewer null --num-frames 100 
 |--------|---------|------|
 | M1 | 16³×100 步，max\|u\|<1e-10 | ✅ |
 | M2 | 32³/50³×500 步，顶盖 BC，主涡可见 | ✅ |
-| M3 | 障碍 + taichi 对照 | 待做 |
-| M4 | 答辩演示 + 报告 | 进行中 |
+| S1–S4 | 1 周内：绕障 + TRT + GL + 答辩素材 | 待做 → [`post_midterm_plan.md`](post_midterm_plan.md) |
 
 ---
 
@@ -115,3 +115,4 @@ python wanphys/examples/fluid_grid_lbm_cavity.py --viewer null --num-frames 100 
 |------|------|------|
 | 1.0 | 2026-06-08 | 新增索引；澄清 Newton / LBM / 可视化分层；汇总阶段文档 |
 | 1.1 | 2026-06-08 | 链到中期答辩文档与 PPT 大纲 |
+| 1.2 | 2026-06-10 | 新增 post_midterm_plan.md（1 周冲刺版 S1–S4） |
