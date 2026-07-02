@@ -21,8 +21,10 @@ def _stub_package(name: str, path: Path) -> None:
 
 def bootstrap_from_test_file(test_file: str) -> Path:
     """Call before any ``wanphys`` import when running a test file directly."""
-    root: Path = Path(test_file).resolve().parents[2]
-    wanphys_dir: Path = root / "wanphys"
+    # This repo root (VRProjectNewton_LBM/) is the python package "wanphys".
+    # So we stub `wanphys` from the repo root and `_src` underneath it.
+    root: Path = Path(test_file).resolve().parents[1]
+    wanphys_dir: Path = root
     src_dir: Path = wanphys_dir / "_src"
     root_str: str = str(root)
     if root_str not in sys.path:

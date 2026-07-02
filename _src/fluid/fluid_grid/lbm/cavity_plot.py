@@ -62,6 +62,7 @@ def plot_lid_driven_cavity(
     velocity: np.ndarray,
     *,
     rho: np.ndarray | None = None,
+    solid: np.ndarray | None = None,
     cell_size: float = 1.0,
     slice_k: int | None = None,
     scalar_mode: str = "speed",
@@ -134,6 +135,20 @@ def plot_lid_driven_cavity(
     ax.set_aspect("equal", adjustable="box")
     ax.set_xlabel("x")
     ax.set_ylabel("y")
+
+    if solid is not None:
+        if solid.shape != velocity.shape[:3]:
+            raise ValueError(f"solid shape {solid.shape} incompatible with velocity {velocity.shape[:3]}")
+        solid_2d: np.ndarray = solid[:, :, k].T.astype(float)
+        ax.contourf(
+            x_mesh,
+            y_mesh,
+            solid_2d,
+            levels=[0.5, 1.5],
+            colors=["#404040"],
+            alpha=0.85,
+            zorder=3,
+        )
 
     if title is None:
         title = f"Lid-driven cavity (x-y @ k={k})"

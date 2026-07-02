@@ -125,6 +125,43 @@ class TestEquilibriumGpu(unittest.TestCase):
             self.assertTrue(np.allclose(F_np[:, :, :, q], expected, atol=1e-10))
             self.assertTrue(np.allclose(f_np[:, :, :, q], expected, atol=1e-10))
 
+    def test_collide_mrt_preserves_uniform_equilibrium(self) -> None:
+        wp = self.wp
+        from wanphys._src.fluid.fluid_grid.lbm import kernels
+        from wanphys._src.fluid.fluid_grid.lbm.lattice import feq_host
+        from wanphys._src.fluid.fluid_grid.lbm.mrt import INV_M_MATRIX, M_MATRIX, build_relaxation_rates
+
+        nx = ny = nz = 4
+        f = wp.zeros((nx, ny, nz, Q), dtype=float, device="cpu")
+        F = wp.zeros((nx, ny, nz, Q), dtype=float, device="cpu")
+        rho = wp.full((nx, ny, nz), 1.0, dtype=float, device="cpu")
+        v = wp.zeros((nx, ny, nz), dtype=wp.vec3, device="cpu")
+        solid = wp.zeros((nx, ny, nz), dtype=wp.int32, device="cpu")
+
+        rho0, u0 = 1.0, (0.0, 0.0, 0.0)
+        wp.launch(
+            kernels.init_equilibrium,
+            dim=(nx, ny, nz),
+            inputs=[f, F, rho, v, solid, rho0, wp.vec3(*u0)],
+            device="cpu",
+        )
+
+        m_matrix = wp.array(M_MATRIX.astype(np.float32), dtype=float, device="cpu")
+        inv_m_matrix = wp.array(INV_M_MATRIX.astype(np.float32), dtype=float, device="cpu")
+        s_diag = wp.array(build_relaxation_rates(1.0).astype(np.float32), dtype=float, device="cpu")
+
+        wp.launch(
+            kernels.collide_mrt,
+            dim=(nx, ny, nz),
+            inputs=[f, F, rho, v, solid, m_matrix, inv_m_matrix, s_diag],
+            device="cpu",
+        )
+
+        F_np = F.numpy()
+        for q in range(Q):
+            expected = feq_host(q, rho0, u0)
+            self.assertTrue(np.allclose(F_np[:, :, :, q], expected, atol=1e-6))
+
 
 if __name__ == "__main__":
     unittest.main()

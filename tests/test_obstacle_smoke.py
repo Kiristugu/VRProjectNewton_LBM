@@ -1,7 +1,12 @@
 # SPDX-FileCopyrightText: Copyright (c) 2025 WanPhys Developers
 # SPDX-License-Identifier: Apache-2.0
 
-"""M2 smoke test: lid-driven cavity flow after 500 steps (phase2_boundaries.md §6.2)."""
+"""Obstacle smoke test (member B: bake_box + obstacle bounce-back).
+
+Goal:
+  - solid cells should keep v ~ 0 (update_macro sets v=0 for solid)
+  - overall flow should still be established (lid-driven cavity)
+"""
 
 from __future__ import annotations
 
@@ -24,22 +29,21 @@ from wanphys._src.fluid.fluid_grid.lbm.solver import FluidGridLbmSolver
 from wanphys._src.fluid.fluid_grid.lbm.state import FluidGridLbmState
 
 
-class TestCavitySmoke(unittest.TestCase):
-    """Qualitative cavity flow with velocity BC walls."""
-
+class TestObstacleSmoke(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         wp.init()
 
-    def test_lid_driven_cavity_500_steps(self) -> None:
+    def test_lid_cavity_with_box_obstacle(self) -> None:
         grid_size: int = 32
-        steps: int = 500
+        steps: int = 200
         u_lid: float = 0.1
 
         model: FluidGridLbmModel = FluidGridLbmModel(
             fluid_grid_res=(grid_size, grid_size, grid_size),
             nu=0.16667,
             use_guo_force=False,
+            collide_impl="bgk",
         )
         solver: FluidGridLbmSolver = FluidGridLbmSolver(model)
         solver.configure_cavity_walls()
@@ -50,6 +54,15 @@ class TestCavitySmoke(unittest.TestCase):
         solver.init_uniform(state_a, rho=1.0, u=wp.vec3(0.0, 0.0, 0.0))
         solver.init_uniform(state_b, rho=1.0, u=wp.vec3(0.0, 0.0, 0.0))
 
+        # Bake a small obstacle near the cavity center (lattice index coordinates).
+        cx = float(grid_size) * 0.55
+        cy = float(grid_size) * 0.5
+        cz = float(grid_size) * 0.5
+        hx = float(grid_size) * 0.08
+        hy = float(grid_size) * 0.08
+        hz = float(grid_size) * 0.08
+        solver.bake_box(state_a, wp.vec3(cx, cy, cz), wp.vec3(hx, hy, hz))
+
         state_in: FluidGridLbmState = state_a
         state_out: FluidGridLbmState = state_b
         for _ in range(steps):
@@ -58,26 +71,21 @@ class TestCavitySmoke(unittest.TestCase):
 
         v_np: np.ndarray = state_in.v.numpy()
         speed: np.ndarray = np.linalg.norm(v_np, axis=-1)
-        max_u: float = float(np.max(speed))
+        solid_mask: np.ndarray = state_in.solid.numpy() != 0
 
-        # Near-lid layer (j = ny - 2) should carry lid-driven u_x.
-        near_lid_ux: np.ndarray = v_np[:, grid_size - 2, :, 0]
-        max_lid_ux: float = float(np.max(near_lid_ux))
-
-        # Mid-plane should show recirculation (some negative u_x under the lid).
-        mid_j: int = grid_size // 2
-        mid_ux: np.ndarray = v_np[:, mid_j, :, 0]
-        min_mid_ux: float = float(np.min(mid_ux))
-
+        self.assertTrue(solid_mask.any(), "bake_box produced an empty solid region")
         self.assertFalse(np.isnan(v_np).any(), "velocity contains NaN")
         self.assertFalse(np.isinf(v_np).any(), "velocity contains Inf")
-        self.assertGreater(max_u, 0.01, f"flow not established, max|u|={max_u}")
-        self.assertGreater(max_lid_ux, 0.05, f"lid BC weak, near-lid max u_x={max_lid_ux}")
-        self.assertLess(min_mid_ux, -0.005, f"no recirculation, mid-plane min u_x={min_mid_ux}")
 
-    def test_lid_driven_cavity_500_steps_mrt(self) -> None:
+        max_solid_u: float = float(np.max(speed[solid_mask]))
+        max_fluid_u: float = float(np.max(speed[~solid_mask]))
+
+        self.assertLess(max_solid_u, 1.0e-5, f"solid cells should be near-stationary: max|u|={max_solid_u}")
+        self.assertGreater(max_fluid_u, 1.0e-2, f"flow not established: max|u|={max_fluid_u}")
+
+    def test_lid_cavity_with_box_obstacle_mrt(self) -> None:
         grid_size: int = 32
-        steps: int = 500
+        steps: int = 200
         u_lid: float = 0.1
 
         model: FluidGridLbmModel = FluidGridLbmModel(
@@ -95,6 +103,14 @@ class TestCavitySmoke(unittest.TestCase):
         solver.init_uniform(state_a, rho=1.0, u=wp.vec3(0.0, 0.0, 0.0))
         solver.init_uniform(state_b, rho=1.0, u=wp.vec3(0.0, 0.0, 0.0))
 
+        cx = float(grid_size) * 0.55
+        cy = float(grid_size) * 0.5
+        cz = float(grid_size) * 0.5
+        hx = float(grid_size) * 0.08
+        hy = float(grid_size) * 0.08
+        hz = float(grid_size) * 0.08
+        solver.bake_box(state_a, wp.vec3(cx, cy, cz), wp.vec3(hx, hy, hz))
+
         state_in: FluidGridLbmState = state_a
         state_out: FluidGridLbmState = state_b
         for _ in range(steps):
@@ -103,21 +119,19 @@ class TestCavitySmoke(unittest.TestCase):
 
         v_np: np.ndarray = state_in.v.numpy()
         speed: np.ndarray = np.linalg.norm(v_np, axis=-1)
-        max_u: float = float(np.max(speed))
+        solid_mask: np.ndarray = state_in.solid.numpy() != 0
 
-        near_lid_ux: np.ndarray = v_np[:, grid_size - 2, :, 0]
-        max_lid_ux: float = float(np.max(near_lid_ux))
-
-        mid_j: int = grid_size // 2
-        mid_ux: np.ndarray = v_np[:, mid_j, :, 0]
-        min_mid_ux: float = float(np.min(mid_ux))
-
+        self.assertTrue(solid_mask.any(), "bake_box produced an empty solid region")
         self.assertFalse(np.isnan(v_np).any(), "velocity contains NaN")
         self.assertFalse(np.isinf(v_np).any(), "velocity contains Inf")
-        self.assertGreater(max_u, 0.01, f"flow not established, max|u|={max_u}")
-        self.assertGreater(max_lid_ux, 0.05, f"lid BC weak, near-lid max u_x={max_lid_ux}")
-        self.assertLess(min_mid_ux, -0.005, f"no recirculation, mid-plane min u_x={min_mid_ux}")
+
+        max_solid_u: float = float(np.max(speed[solid_mask]))
+        max_fluid_u: float = float(np.max(speed[~solid_mask]))
+
+        self.assertLess(max_solid_u, 1.0e-5, f"solid cells should be near-stationary: max|u|={max_solid_u}")
+        self.assertGreater(max_fluid_u, 1.0e-2, f"flow not established: max|u|={max_fluid_u}")
 
 
 if __name__ == "__main__":
     unittest.main()
+

@@ -29,12 +29,13 @@ import warp as wp
 
 def _bootstrap_lbm_imports() -> None:
     """Avoid loading wanphys top-level __init__ (geometry deps) in minimal venvs."""
-    root: Path = Path(__file__).resolve().parents[2]
+    # Repo root (VRProjectNewton_LBM/) is the python package "wanphys".
+    root: Path = Path(__file__).resolve().parents[1]
     root_str: str = str(root)
     if root_str not in sys.path:
         sys.path.insert(0, root_str)
 
-    wanphys_dir: Path = root / "wanphys"
+    wanphys_dir: Path = root
     src_dir: Path = wanphys_dir / "_src"
 
     def _stub(name: str, path: Path) -> None:
