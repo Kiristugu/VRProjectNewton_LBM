@@ -76,7 +76,9 @@ output/cavity_compare/
 - **subtle（Re≈38）**：两者可以 **逐帧完全一致** —— 这是预期行为，不是 MRT 没跑起来。
 - **stress / contrast**：`max|rho-1|` 等标量仍很接近（同一角点压缩误差主导），并排 PNG 色标相同时会“看起来一样”；请打开 **`cavity_diff_rho.png`** 看绝对差值场。
 
-MRT 的主要优势通常是 **高 Re / 强剪切下的稳定性**，而不是在同一 ω 下给出完全不同的定常流场。若答辩需要“并排就能看出来”，优先用 **`coarse`**（BGK NaN、MRT 正常），或改用文献中的完整 D3Q19 S 矩阵。
+MRT 的主要优势通常是 **高 Re / 强剪切下的稳定性**，而不是在同一 ω 下给出完全不同的定常流场。若答辩需要“并排就能看出来”，优先用 **`coarse`**（BGK NaN、MRT 正常）。
+
+完整总结（预设设计、实测数据、答辩话术）见 **[`bgk_mrt_compare_summary.md`](bgk_mrt_compare_summary.md)**。
 
 ---
 

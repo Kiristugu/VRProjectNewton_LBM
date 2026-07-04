@@ -52,7 +52,8 @@ Newton **没有内置 LBM**。大作业是在 WanPhys 上**自研** D3Q19-BGK �
 | 4 | [`phase4_visualization.md`](phase4_visualization.md) | GL / VTK / matplotlib 出图 | ✅ |
 | 5 | [`post_midterm_plan.md`](post_midterm_plan.md) | **1 周冲刺**：绕障 → TRT → ρ 着色 GL | 🔄 进行中 |
 | 6 | [`obstacle_flow_cases.md`](obstacle_flow_cases.md) | **绕障算例**：腔体三柱高 + 通道圆柱/方柱、PNG/VTK | ✅ |
-| 7 | [`bgk_mrt_compare.md`](bgk_mrt_compare.md) | **BGK/MRT 对比预设**：`--profile subtle\|stress` | ✅ |
+| 7 | [`bgk_mrt_compare.md`](bgk_mrt_compare.md) | **BGK/MRT 对比预设**：CLI 速查 | ✅ |
+| 7b | [`bgk_mrt_compare_summary.md`](bgk_mrt_compare_summary.md) | **BGK/MRT 对比实验总结**（预设设计、实测现象、答辩建议） | ✅ |
 | — | [`lbm_week1_report_A.md`](lbm_week1_report_A.md) | 第 1 周架构解读（历史记录） | 归档 |
 
 ---
@@ -123,4 +124,4 @@ python wanphys/tests/test_obstacle_smoke.py
 | 1.0 | 2026-06-08 | 新增索引；澄清 Newton / LBM / 可视化分层；汇总阶段文档 |
 | 1.1 | 2026-06-08 | 链到中期答辩文档与 PPT 大纲 |
 | 1.2 | 2026-06-10 | 新增 post_midterm_plan.md（1 周冲刺版 S1–S4） |
-| 1.3 | 2026-06-23 | 新增 obstacle_flow_cases.md；索引补充 M3 绕障命令 |
+| 1.4 | 2026-07-04 | 新增 bgk_mrt_compare_summary.md；BGK/MRT 五档预设（含 coarse / contrast） |
