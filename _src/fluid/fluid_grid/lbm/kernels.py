@@ -23,6 +23,73 @@ USE_GUO_OFF = wp.constant(0)
 
 
 @wp.kernel
+def bake_box(
+    solid: wp.array3d(dtype=wp.int32),
+    solid_phi: wp.array3d(dtype=float),
+    center: wp.vec3,
+    half_extents: wp.vec3,
+) -> None:
+    """Mark grid cells inside an axis-aligned box as solid (bounce-back in stream_pull)."""
+    i, j, k = wp.tid()
+    p = wp.vec3(float(i) + 0.5, float(j) + 0.5, float(k) + 0.5)
+    inside = (
+        wp.abs(p[0] - center[0]) <= half_extents[0]
+        and wp.abs(p[1] - center[1]) <= half_extents[1]
+        and wp.abs(p[2] - center[2]) <= half_extents[2]
+    )
+    if inside:
+        solid[i, j, k] = 1
+        solid_phi[i, j, k] = -1.0
+
+
+@wp.kernel
+def bake_cylinder_z(
+    solid: wp.array3d(dtype=wp.int32),
+    solid_phi: wp.array3d(dtype=float),
+    center_x: float,
+    center_y: float,
+    radius: float,
+) -> None:
+    """Infinite cylinder aligned with z through (center_x, center_y) in lattice units."""
+    i, j, k = wp.tid()
+    dx = (float(i) + 0.5) - center_x
+    dy = (float(j) + 0.5) - center_y
+    if dx * dx + dy * dy <= radius * radius:
+        solid[i, j, k] = 1
+        solid_phi[i, j, k] = -1.0
+
+
+@wp.kernel
+def bake_cylinder_y(
+    solid: wp.array3d(dtype=wp.int32),
+    solid_phi: wp.array3d(dtype=float),
+    center_x: float,
+    center_z: float,
+    radius: float,
+) -> None:
+    """Infinite cylinder aligned with y through (center_x, center_z) in lattice units."""
+    i, j, k = wp.tid()
+    dx = (float(i) + 0.5) - center_x
+    dz = (float(k) + 0.5) - center_z
+    if dx * dx + dz * dz <= radius * radius:
+        solid[i, j, k] = 1
+        solid_phi[i, j, k] = -1.0
+
+
+@wp.kernel
+def bake_solid_j_min(
+    solid: wp.array3d(dtype=wp.int32),
+    solid_phi: wp.array3d(dtype=float),
+    j_min: int,
+) -> None:
+    """Mark cells with j >= j_min as solid (e.g. dry air above a free surface)."""
+    i, j, k = wp.tid()
+    if j >= j_min:
+        solid[i, j, k] = 1
+        solid_phi[i, j, k] = -1.0
+
+
+@wp.kernel
 def init_equilibrium(
     # Week-1 (B): set f, F, rho, v to uniform equilibrium (DESIGN.md §7.1).
     f: wp.array4d(dtype=float),

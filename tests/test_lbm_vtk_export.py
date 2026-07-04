@@ -28,13 +28,16 @@ class TestLbmVtkExport(unittest.TestCase):
         rho: np.ndarray = np.ones((nx, ny, nz), dtype=np.float64)
         velocity: np.ndarray = np.zeros((nx, ny, nz, 3), dtype=np.float64)
         velocity[:, -1, :, 0] = 0.1
+        solid: np.ndarray = np.zeros((nx, ny, nz), dtype=np.float64)
+        solid[1, 1, 1] = 1.0
 
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp) / "cavity.vtk"
-            export_structured_vtk(out, rho, velocity)
+            export_structured_vtk(out, rho, velocity, solid=solid, title="test")
             text: str = out.read_text(encoding="ascii")
             self.assertIn("STRUCTURED_POINTS", text)
             self.assertIn("SCALARS rho", text)
+            self.assertIn("SCALARS solid", text)
             self.assertIn("VECTORS velocity", text)
 
 

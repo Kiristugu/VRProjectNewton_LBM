@@ -51,6 +51,7 @@ Newton **没有内置 LBM**。大作业是在 WanPhys 上**自研** D3Q19-BGK �
 | 3 | [`phase3_domain_example.md`](phase3_domain_example.md) | Domain、示例脚本、M2 验收 | ✅ |
 | 4 | [`phase4_visualization.md`](phase4_visualization.md) | GL / VTK / matplotlib 出图 | ✅ |
 | 5 | [`post_midterm_plan.md`](post_midterm_plan.md) | **1 周冲刺**：绕障 → TRT → ρ 着色 GL | 🔄 进行中 |
+| 6 | [`obstacle_flow_cases.md`](obstacle_flow_cases.md) | **绕障算例**：腔体三柱高 + 通道圆柱/方柱、PNG/VTK | ✅ |
 | — | [`lbm_week1_report_A.md`](lbm_week1_report_A.md) | 第 1 周架构解读（历史记录） | 归档 |
 
 ---
@@ -84,6 +85,11 @@ python wanphys/examples/fluid_grid_lbm_cavity.py --viewer null --num-frames 100 
 # M2 + VTK + streamplot PNG
 python wanphys/examples/fluid_grid_lbm_cavity.py --viewer null --num-frames 100 --test `
   --export-vtk output/cavity.vtk --save-slice output/cavity_streamplot.png
+
+# M3 绕障（详见 obstacle_flow_cases.md）
+python wanphys/examples/fluid_grid_lbm_obstacle.py --viewer null --grid-size 64 --num-frames 100 --test --obstacle-height all
+python wanphys/examples/fluid_grid_lbm_channel_obstacle.py --viewer null --num-frames 600 --test --obstacle-mode both
+python wanphys/tests/test_obstacle_smoke.py
 ```
 
 测试文件通过 `tests/_bootstrap.py` 桩加载 LBM 包，**避免**拉取完整 `wanphys` 顶层依赖。
@@ -116,3 +122,4 @@ python wanphys/examples/fluid_grid_lbm_cavity.py --viewer null --num-frames 100 
 | 1.0 | 2026-06-08 | 新增索引；澄清 Newton / LBM / 可视化分层；汇总阶段文档 |
 | 1.1 | 2026-06-08 | 链到中期答辩文档与 PPT 大纲 |
 | 1.2 | 2026-06-10 | 新增 post_midterm_plan.md（1 周冲刺版 S1–S4） |
+| 1.3 | 2026-06-23 | 新增 obstacle_flow_cases.md；索引补充 M3 绕障命令 |
