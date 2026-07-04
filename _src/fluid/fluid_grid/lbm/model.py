@@ -19,6 +19,18 @@ class FluidGridLbmModel(FluidGridModelBase):
     force: tuple[float, float, float] = (0.0, 0.0, 0.0)
     use_guo_force: bool = True
 
+    # Collision scheme selector:
+    # - "bgk": single relaxation time BGK
+    # - "trt": two-relaxation-time TRT (uses omega_plus / omega_minus)
+    # - "mrt": multiple-relaxation-time MRT
+    collide_impl: str = "bgk"
+
+    # TRT "magic" parameter (Krüger): tau_minus = 0.5 + Lambda * (tau_plus - 0.5).
+    trt_lambda: float = 0.25
+
+    # MRT ghost-moment relaxation rate (hydrodynamic moments use ``omega``).
+    mrt_ghost_s: float = 1.0
+
     # Face BC types: 0=periodic, 1=pressure (Zou-He rho), 2=velocity (Zou-He u)
     bc_x_left: int = 0
     bc_x_right: int = 0
