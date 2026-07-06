@@ -1,0 +1,28 @@
+\contentsline {section}{\numberline {1}课题背景与目标}{3}{section.1}%
+\contentsline {subsection}{\numberline {1.1}背景}{3}{subsection.1.1}%
+\contentsline {subsection}{\numberline {1.2}作业要求摘要}{3}{subsection.1.2}%
+\contentsline {subsection}{\numberline {1.3}预期成果与完成情况}{3}{subsection.1.3}%
+\contentsline {section}{\numberline {2}总体架构}{3}{section.2}%
+\contentsline {subsection}{\numberline {2.1}嵌入 WanPhys \texttt {fluid\_grid} 框架}{3}{subsection.2.1}%
+\contentsline {subsection}{\numberline {2.2}Newton 示例壳的角色}{4}{subsection.2.2}%
+\contentsline {subsection}{\numberline {2.3}核心类与单步流程}{4}{subsection.2.3}%
+\contentsline {section}{\numberline {3}核心算法}{5}{section.3}%
+\contentsline {subsection}{\numberline {3.1}D3Q19 与格子单位}{5}{subsection.3.1}%
+\contentsline {subsection}{\numberline {3.2}BGK 碰撞}{5}{subsection.3.2}%
+\contentsline {subsection}{\numberline {3.3}TRT 与 MRT（扩展）}{5}{subsection.3.3}%
+\contentsline {subsection}{\numberline {3.4}外力（Guo 简化）}{5}{subsection.3.4}%
+\contentsline {section}{\numberline {4}边界条件}{5}{section.4}%
+\contentsline {subsection}{\numberline {4.1}六面分类框架}{5}{subsection.4.1}%
+\contentsline {subsection}{\numberline {4.2}顶盖驱动方腔}{6}{subsection.4.2}%
+\contentsline {subsection}{\numberline {4.3}通道绕障}{6}{subsection.4.3}%
+\contentsline {subsection}{\numberline {4.4}已知 BC 缺陷}{6}{subsection.4.4}%
+\contentsline {section}{\numberline {5}演示算例}{6}{section.5}%
+\contentsline {subsection}{\numberline {5.1}顶盖方腔}{6}{subsection.5.1}%
+\contentsline {subsection}{\numberline {5.2}腔体绕障}{7}{subsection.5.2}%
+\contentsline {subsection}{\numberline {5.3}通道绕障}{7}{subsection.5.3}%
+\contentsline {subsection}{\numberline {5.4}BGK / MRT 对比}{8}{subsection.5.4}%
+\contentsline {section}{\numberline {6}验证与测试}{10}{section.6}%
+\contentsline {section}{\numberline {7}不足与后续工作}{10}{section.7}%
+\contentsline {section}{\numberline {8}结论}{11}{section.8}%
+\contentsline {section}{\numberline {A}常用编译与运行命令}{11}{section.A}%
+\contentsline {section}{\numberline {B}参考文献}{11}{section.B}%

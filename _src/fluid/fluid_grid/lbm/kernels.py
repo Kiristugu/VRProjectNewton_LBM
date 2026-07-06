@@ -6,6 +6,7 @@
 Week-1 deliverables (member B, §7.1–7.2):
   - ``init_equilibrium``  — uniform equilibrium initialization
   - ``collide_bgk``       — BGK collision operator
+  - ``collide_mrt``       — MRT collision operator
   - ``update_macro``      — density / velocity recovery from F
   - ``stream_pull``       — pull streaming (week 2, see docs/phase1_stream_pull.md)
   - ``stream_pull_identity`` — week-1 placeholder (kept for debugging)
@@ -18,75 +19,9 @@ from __future__ import annotations
 import warp as wp
 
 from .lattice import Q, feq, lattice_e_f, lattice_e_i, lattice_lr
+from .mrt import MRT_Q
 
 USE_GUO_OFF = wp.constant(0)
-
-
-@wp.kernel
-def bake_box(
-    solid: wp.array3d(dtype=wp.int32),
-    solid_phi: wp.array3d(dtype=float),
-    center: wp.vec3,
-    half_extents: wp.vec3,
-) -> None:
-    """Mark grid cells inside an axis-aligned box as solid (bounce-back in stream_pull)."""
-    i, j, k = wp.tid()
-    p = wp.vec3(float(i) + 0.5, float(j) + 0.5, float(k) + 0.5)
-    inside = (
-        wp.abs(p[0] - center[0]) <= half_extents[0]
-        and wp.abs(p[1] - center[1]) <= half_extents[1]
-        and wp.abs(p[2] - center[2]) <= half_extents[2]
-    )
-    if inside:
-        solid[i, j, k] = 1
-        solid_phi[i, j, k] = -1.0
-
-
-@wp.kernel
-def bake_cylinder_z(
-    solid: wp.array3d(dtype=wp.int32),
-    solid_phi: wp.array3d(dtype=float),
-    center_x: float,
-    center_y: float,
-    radius: float,
-) -> None:
-    """Infinite cylinder aligned with z through (center_x, center_y) in lattice units."""
-    i, j, k = wp.tid()
-    dx = (float(i) + 0.5) - center_x
-    dy = (float(j) + 0.5) - center_y
-    if dx * dx + dy * dy <= radius * radius:
-        solid[i, j, k] = 1
-        solid_phi[i, j, k] = -1.0
-
-
-@wp.kernel
-def bake_cylinder_y(
-    solid: wp.array3d(dtype=wp.int32),
-    solid_phi: wp.array3d(dtype=float),
-    center_x: float,
-    center_z: float,
-    radius: float,
-) -> None:
-    """Infinite cylinder aligned with y through (center_x, center_z) in lattice units."""
-    i, j, k = wp.tid()
-    dx = (float(i) + 0.5) - center_x
-    dz = (float(k) + 0.5) - center_z
-    if dx * dx + dz * dz <= radius * radius:
-        solid[i, j, k] = 1
-        solid_phi[i, j, k] = -1.0
-
-
-@wp.kernel
-def bake_solid_j_min(
-    solid: wp.array3d(dtype=wp.int32),
-    solid_phi: wp.array3d(dtype=float),
-    j_min: int,
-) -> None:
-    """Mark cells with j >= j_min as solid (e.g. dry air above a free surface)."""
-    i, j, k = wp.tid()
-    if j >= j_min:
-        solid[i, j, k] = 1
-        solid_phi[i, j, k] = -1.0
 
 
 @wp.kernel
@@ -130,6 +65,82 @@ def collide_bgk(
         fq = f[i, j, k, q]
         feq_val = feq(q, r, u)
         F[i, j, k, q] = fq - omega * (fq - feq_val)
+
+
+@wp.kernel
+def collide_trt(
+    # TRT (B): post-collision in F using two relaxation rates.
+    #
+    # Decompose each opposite pair (q, LR[q]) into symmetric (+) and antisymmetric (-)
+    # parts, relax them with omega_plus / omega_minus, then reconstruct.
+    f: wp.array4d(dtype=float),
+    F: wp.array4d(dtype=float),
+    rho: wp.array3d(dtype=float),
+    v: wp.array3d(dtype=wp.vec3),
+    solid: wp.array3d(dtype=wp.int32),
+    omega_plus: float,
+    omega_minus: float,
+) -> None:
+    i, j, k = wp.tid()
+    if solid[i, j, k] != 0:
+        return
+
+    r = rho[i, j, k]
+    u = v[i, j, k]
+
+    for q in range(Q):
+        lr = lattice_lr(q)
+
+        fq = f[i, j, k, q]
+        flr = f[i, j, k, lr]
+
+        feq_q = feq(q, r, u)
+        feq_lr = feq(lr, r, u)
+
+        f_plus = 0.5 * (fq + flr)
+        f_minus = 0.5 * (fq - flr)
+
+        feq_plus = 0.5 * (feq_q + feq_lr)
+        feq_minus = 0.5 * (feq_q - feq_lr)
+
+        out_plus = f_plus - omega_plus * (f_plus - feq_plus)
+        out_minus = f_minus - omega_minus * (f_minus - feq_minus)
+
+        F[i, j, k, q] = out_plus + out_minus
+
+
+@wp.kernel
+def collide_mrt(
+    # MRT (B): transform to moment space, relax, transform back.
+    f: wp.array4d(dtype=float),
+    F: wp.array4d(dtype=float),
+    rho: wp.array3d(dtype=float),
+    v: wp.array3d(dtype=wp.vec3),
+    solid: wp.array3d(dtype=wp.int32),
+    m_matrix: wp.array2d(dtype=float),
+    inv_m_matrix: wp.array2d(dtype=float),
+    s_diag: wp.array(dtype=float),
+) -> None:
+    i, j, k = wp.tid()
+    if solid[i, j, k] != 0:
+        return
+
+    r = rho[i, j, k]
+    u = v[i, j, k]
+
+    for q in range(MRT_Q):
+        out_q = float(0.0)
+        for moment in range(MRT_Q):
+            m_val = float(0.0)
+            meq_val = float(0.0)
+            for a in range(MRT_Q):
+                fq = f[i, j, k, a]
+                feq_val = feq(a, r, u)
+                m_val += m_matrix[moment, a] * fq
+                meq_val += m_matrix[moment, a] * feq_val
+            mp_val = m_val - s_diag[moment] * (m_val - meq_val)
+            out_q += inv_m_matrix[q, moment] * mp_val
+        F[i, j, k, q] = out_q
 
 
 @wp.func
@@ -387,3 +398,20 @@ def apply_boundaries(
             if nz <= 1:
                 u_inner = v[i, j, k]
             set_pressure_bc(F, i, j, k, bc_rho, v[i, j, k], u_inner, inner_solid)
+
+
+@wp.kernel
+def bake_box(
+    solid: wp.array3d(dtype=wp.int32),
+    center: wp.vec3,
+    half_extents: wp.vec3,
+) -> None:
+    """Mark axis-aligned box as solid in grid index (lattice) coordinates."""
+    i, j, k = wp.tid()
+
+    p = wp.vec3(float(i), float(j), float(k))
+    d = wp.abs(p - center) - half_extents
+    # Inside iff max(d) <= 0.
+    dist = wp.max(d[0], wp.max(d[1], d[2]))
+    if dist <= 0.0:
+        solid[i, j, k] = 1
