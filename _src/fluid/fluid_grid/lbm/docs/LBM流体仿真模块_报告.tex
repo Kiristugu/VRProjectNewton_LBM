@@ -1,0 +1,575 @@
+% !TEX program = xelatex
+% !TEX encoding = UTF-8
+%
+% 编译：将 WanPhys-dev/output/ 整夹复制到与本 .tex 同级目录下，再：
+%   xelatex LBM流体仿真模块_报告.tex
+%   xelatex LBM流体仿真模块_报告.tex
+%
+% 插图路径均为 output/...（相对 .tex 所在目录）。
+
+\documentclass[UTF8,a4paper,11pt]{ctexart}
+
+% ---------- 版式与字体 ----------
+\usepackage{geometry}
+\geometry{margin=2.5cm, headheight=14pt}
+
+% ---------- 数学 ----------
+\usepackage{amsmath,amssymb,bm,mathtools}
+
+% ---------- 表格与列表 ----------
+\usepackage{booktabs}
+\usepackage{array}
+\usepackage{longtable}
+\usepackage{enumitem}
+\setlist{nosep}
+
+% ---------- 图表 ----------
+\usepackage{graphicx}
+\usepackage{float}
+\usepackage{caption}
+\usepackage{subcaption}
+\captionsetup{font=small, labelfont=bf}
+
+% ---------- 代码与终端输出 ----------
+\usepackage{xcolor}
+\usepackage{listings}
+\lstset{
+  basicstyle=\ttfamily\small,
+  breaklines=true,
+  frame=single,
+  backgroundcolor=\color{gray!4},
+  keywordstyle=\color{blue!70!black},
+  commentstyle=\color{green!40!black},
+  numbers=left,
+  numberstyle=\tiny\color{gray},
+  tabsize=2,
+  showstringspaces=false,
+}
+
+% ---------- 超链接（放在导言区末尾） ----------
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue,
+  citecolor=blue,
+  urlcolor=blue,
+  pdftitle={基于 WanPhys 的 D3Q19 LBM 流体仿真模块},
+  pdfauthor={课程项目组},
+}
+
+% ---------- 常用数学符号 ----------
+\newcommand{\vecx}{\mathbf{x}}
+\newcommand{\vecu}{\mathbf{u}}
+\newcommand{\vece}{\mathbf{e}}
+\newcommand{\feq}{f^{\mathrm{eq}}}
+\newcommand{\dt}{\Delta t}
+\newcommand{\dx}{\Delta x}
+\newcommand{\cs}{c_s}
+\newcommand{\Rey}{\mathrm{Re}}
+
+\title{\textbf{基于 WanPhys 的\\D3Q19 格子玻尔兹曼流体仿真模块}\\[0.6em]
+  \large 项目技术报告}
+\author{WanPhys LBM 项目组}
+\date{2026 年 7 月}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+  本项目在 WanPhys \texttt{fluid\_grid} 框架内实现 D3Q19 单相流 LBM 模块，
+  遵循与 \texttt{basic\_vortex}、\texttt{liquid}、\texttt{apic} 相同的
+  Model / State / Solver / Domain 分层，继承 \texttt{FluidGridModelBase}、
+  \texttt{FluidGridStateBase}、\texttt{FluidGridSolverBase} 及 Newton \texttt{Domain} 契约，
+  在 GPU（Warp）上完成 BGK / TRT / MRT 碰撞、Pull 迁移、六面边界与格点固体障碍。
+  示例通过 Newton 运行壳驱动 \texttt{FluidGridLbmDomain.step()}，后处理复用
+  \texttt{fluid\_viewer} 与 VTK 管线。
+  报告说明如何在 WanPhys 框架内扩展新算法族、核心实现、验证结果及已知局限。
+\end{abstract}
+
+\tableofcontents
+\newpage
+
+%======================================================================
+\section{课题背景与目标}
+%======================================================================
+
+\subsection{背景}
+
+流体模拟在图形学、机器人与游戏中应用广泛。传统欧拉网格法直接离散速度、压力等宏观量，
+通过压力投影实现近似不可压缩；格子玻尔兹曼方法（LBM）则在规则格点上存储沿离散速度方向
+传播的分布函数 $f_i$，通过\textbf{局部碰撞}与\textbf{邻格迁移}恢复宏观密度 $\rho$、
+速度 $\vecu$ 与压力。
+
+\subsection{作业要求摘要}
+
+依据课程说明（\texttt{newton.txt}），基础目标包括：
+\begin{itemize}
+  \item 分布函数相关计算、BGK 碰撞、streaming 传播；
+  \item 基本边界条件、简单外力项；
+  \item 稳定性验证、示例场景与可视化。
+\end{itemize}
+可选扩展含 MRT/TRT 碰撞格式对比、复杂边界与固体耦合等。本组在基础 Pipeline 之上
+实现了绕障流与 BGK/MRT 对比。
+
+\subsection{预期成果与完成情况}
+
+\begin{table}[H]
+  \centering
+  \caption{基础要求与实现对照}
+  \begin{tabular}{@{}lll@{}}
+    \toprule
+    要求项 & 实现位置 & 状态 \\
+    \midrule
+    D3Q19 数据结构 & \texttt{lattice.py}, \texttt{state.py} & 已完成 \\
+    BGK 碰撞 & \texttt{kernels.collide\_bgk} & 已完成 \\
+    Pull streaming & \texttt{kernels.stream\_pull} & 已完成 \\
+    边界条件 & \texttt{kernels.apply\_boundaries} & 已完成（简化格式） \\
+    简单外力 & \texttt{kernels.update\_macro}（Guo 简化） & 接口已有，演示默认关闭 \\
+    示例与可视化 & \texttt{examples/}, \texttt{cavity\_plot.py} 等 & 已完成 \\
+    MRT / TRT（扩展） & \texttt{collide\_mrt}, \texttt{collide\_trt} & 已完成 \\
+    绕障流 & \texttt{fluid\_grid\_lbm\_obstacle.py} 等 & 已完成 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+%======================================================================
+\section{总体架构}
+%======================================================================
+
+\subsection{嵌入 WanPhys \texttt{fluid\_grid} 框架}
+
+课程要求基于 Newton \texttt{release-1.1} / WanPhys 实现 LBM；\textbf{物理求解与数据结构深度落在 WanPhys 内}，
+而非在引擎外另起一套脚本。本模块作为 \texttt{fluid\_grid/} 下的\textbf{第四条算法支线}
+（与 \texttt{basic\_vortex}、\texttt{liquid}、\texttt{apic} 并列），路径为
+\texttt{wanphys/\_src/fluid/fluid\_grid/lbm/}，并已从 \texttt{fluid\_grid/\_\_init\_\_.py} 导出
+\texttt{FluidGridLbmModel} 等公开类型。
+
+\begin{table}[H]
+  \centering
+  \caption{与 WanPhys \texttt{fluid\_grid} 抽象层的对接}
+  \begin{tabular}{@{}llp{7.2cm}@{}}
+    \toprule
+    WanPhys 基类 / 契约 & LBM 实现 & 说明 \\
+    \midrule
+    \texttt{FluidGridModelBase} & \texttt{FluidGridLbmModel} & $\nu$, BC 类型, \texttt{collide\_impl} \\
+    \texttt{FluidGridStateBase} & \texttt{FluidGridLbmState} & $f$, $F$, $\rho$, $\vecu$；复用 \texttt{solid\_phi} 烘焙 \\
+    \texttt{FluidGridSolverBase} & \texttt{FluidGridLbmSolver} & 重写 \texttt{step()}，编排 LBM 五步 \\
+    \texttt{Domain} & \texttt{FluidGridLbmDomain} & 双缓冲 \texttt{create\_state}/\texttt{step}，与 \texttt{liquid/domain} 同模式 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+LBM 以分布函数 $f_i$ 为主状态、通过碰撞松弛隐含不可压，\textbf{不适用}
+\texttt{FluidGridMacSolverBase} 的 MAC 压力投影 Hook（对流$\to$散度$\to$泊松$\to$投影）。
+这与 \texttt{liquid}/\texttt{apic} 虽继承 MAC 基类但\textbf{重写整段 \texttt{step()}}、
+走粒子--网格管线的做法同类：\textbf{在 WanPhys 统一 Solver/Domain 接口下，实现算法专用的推进逻辑}，
+而不是脱离框架的“外挂求解器”。详见 \texttt{fluid\_grid/ARCHITECTURE.md} 与 \texttt{DESIGN.md}。
+
+\subsection{Newton 示例壳的角色}
+
+Newton \textbf{不提供} LBM 内核；其职责是\textbf{运行已注册的 WanPhys Domain}：
+\texttt{newton.examples.run()} 负责 CLI、帧循环与 \texttt{test\_final()} 钩子。
+\texttt{fluid\_grid\_lbm\_*.py} 中实例化 \texttt{FluidGridLbmDomain}、配置 BC/障碍后调用
+\texttt{domain.step()}——与 \texttt{basic\_vortex}、\texttt{liquid} 示例调用各自 Domain 的方式一致。
+后处理（\texttt{cavity\_plot}、\texttt{vtk\_export}、\texttt{lbm\_flow}）读取 \texttt{state.v.numpy()}，
+同样挂在 WanPhys 流体可视化子模块下。
+
+\begin{table}[H]
+  \centering
+  \caption{职责划分}
+  \begin{tabular}{@{}p{3.2cm}p{4.5cm}p{6cm}@{}}
+    \toprule
+    层次 & 归属 & 职责 \\
+    \midrule
+    算法 + 数据 & \textbf{WanPhys} \texttt{fluid\_grid/lbm} & Model/State/Solver/Domain、Warp kernels \\
+    场景编排 & WanPhys \texttt{examples/} & 腔体/绕障 IC/BC，组装 Domain \\
+    帧循环壳 & Newton \texttt{examples} & \texttt{--num-frames}、Viewer、验收回调 \\
+    后处理 & WanPhys 绘图 / VTK & PNG、ParaView、可选 GL \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{核心类与单步流程}
+
+模块包含 \texttt{FluidGridLbmModel}（静态参数）、
+\texttt{FluidGridLbmState}（$f$, $F$, $\rho$, $\vecu$, \texttt{solid}）、
+\texttt{FluidGridLbmSolver}（单步编排）、
+\texttt{FluidGridLbmDomain}（双缓冲）。
+
+单步顺序（已冻结）：
+\begin{equation}
+  \text{collide} \;\to\; \text{stream\_pull} \;\to\;
+  \text{apply\_boundaries} \;\to\; \text{update\_macro} \;\to\; \text{swap}(f, F)
+\end{equation}
+
+选用 \textbf{Pull} 迁移：格点从上游 $x-\vece_i$ 读取分布，配合双缓冲避免 GPU 竞态，
+并与参考实现 \texttt{taichi\_LBM3D} 的 \texttt{streaming1} 一致，便于对照。
+
+%======================================================================
+\section{核心算法}
+%======================================================================
+
+\subsection{D3Q19 与格子单位}
+
+采用 D3Q19 模型（$Q=19$ 离散速度），平衡态（格子单位，$\cs^2=1/3$）：
+\begin{equation}
+  \feq_i(\rho, \vecu) = w_i \rho \left[
+    1 + \frac{3\vece_i\cdot\vecu}{\cs^2}
+    + \frac{9(\vece_i\cdot\vecu)^2}{2\cs^4}
+    - \frac{3\|\vecu\|^2}{2\cs^2}
+  \right].
+\end{equation}
+
+全程使用格子单位：$\dx=\dt=1$，运动黏度 $\nu$ 由模型传入，
+松弛时间 $\tau = 3\nu + 0.5$，$\omega = 1/\tau$。
+\textbf{不对照文献前禁止}用 \texttt{cell\_size} 换算物理速度。
+
+\subsection{BGK 碰撞}
+
+单松弛时间 BGK：
+\begin{equation}
+  f_i' = f_i - \omega\,(f_i - \feq_i(\rho, \vecu)).
+\end{equation}
+固体格点（\texttt{solid}$=1$）跳过碰撞，由迁移与 bounce-back 处理。
+
+\subsection{TRT 与 MRT（扩展）}
+
+\textbf{TRT}：对分布的正负对称部分使用不同松弛率 $\omega_\pm$，改善高 Re 稳定性。
+
+\textbf{MRT}：将 $f$ 变换到矩空间，对各矩独立松弛后再变回速度空间。
+本实现采用\textbf{简化松弛矩阵}（\texttt{mrt.py}）：
+\begin{itemize}
+  \item 守恒矩（$\rho$, $j_x$, $j_y$, $j_z$）：松弛率 $0$；
+  \item 剪切相关 hydrodynamic 矩（4--15）：松弛率 $\omega$（与 BGK 相同）；
+  \item ghost 矩（16--18）：松弛率 \texttt{mrt\_ghost\_s}$=1.0$。
+\end{itemize}
+因此在稳定工况下 MRT 宏观场与 BGK 接近；\textbf{主要优势}体现在高 Re / 粗网格下
+BGK 发散时 MRT 仍可计算。MRT 碰撞核复杂度约 $O(19^3)$/格点，显著慢于 BGK。
+
+\subsection{外力（Guo 简化）}
+
+体积力配置于 \texttt{FluidGridLbmModel.force}，开关 \texttt{use\_guo\_force}。
+仅在 \texttt{update\_macro} 中对宏观速度做修正：
+\begin{equation}
+  \vecu \leftarrow \frac{1}{\rho}\sum_i \vece_i f_i + \frac{\mathbf{F}}{2\rho},
+\end{equation}
+其中 $\mathbf{F}$ 为格子单位体积力；\textbf{碰撞步未写入完整 Guo 源项}。
+
+当前演示算例（腔体、绕障、通道、BGK/MRT 对比）均设
+\texttt{use\_guo\_force=False}，流动由\textbf{边界驱动}（顶盖速度、入口速度），
+\textbf{未启用}体积外力。
+
+%======================================================================
+\section{边界条件}
+%======================================================================
+
+\subsection{六面分类框架}
+
+计算域六个外表面各自独立配置类型码 \texttt{bc\_*}：
+\begin{table}[H]
+  \centering
+  \caption{边界类型码}
+  \begin{tabular}{@{}cll@{}}
+    \toprule
+    码 & 类型 & 实现 \\
+    \midrule
+    0 & 周期 & \texttt{stream\_pull} 内 wrap，BC 跳过 \\
+    1 & 压力型 & $F_i = \feq_i(\rho_{\mathrm{bc}}, \vecu_{\mathrm{inner}})$ \\
+    2 & 速度型 & $F_i = \feq_i(\rho=1, \vecu_{\mathrm{bc}})$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\textbf{说明}：当前为 taichi 参考的\textbf{平衡态填边界}，非完整 Zou--He 反推未知分布。
+
+\subsection{顶盖驱动方腔}
+
+坐标约定：\texttt{velocity[i,j,k]} 中 $i=x$, $j=y$, $k=z$；顶盖位于 $j=ny-1$
+（字段 \texttt{bc\_y\_right}）。
+
+\begin{lstlisting}[language=Python,caption={腔体边界配置}]
+domain.solver.configure_cavity_walls()   # 六面 bc=2, u=0
+domain.solver.set_lid_velocity(wp.vec3(U_lid, 0, 0))  # 顶盖
+\end{lstlisting}
+
+六面均为\textbf{速度型}，因物理边界给定的是壁面/顶盖速度（无滑移与匀速顶盖），
+而非定压进出口。$z$ 向两端亦为 $u=0$，故为\textbf{3D 封闭盒}，非理想 2D 无限展向腔。
+
+\subsection{通道绕障}
+
+六面\textbf{异质}配置：$x=0$ 速度入口；$x=nx-1$ 压力出口；$y$ 壁面无滑移；$z$ 周期。
+入口为\textbf{均匀来流}，无发展段与剖面入口。
+
+\subsection{已知 BC 缺陷}
+
+\begin{enumerate}
+  \item \textbf{非完整 Zou--He}：19 个方向全部设为 $\feq$，角点 $\rho$ 误差偏大。
+  \item \textbf{角点未专门处理}：棱边格点被多个面依次重写 $\feq$，
+        顶盖--侧壁交点（如 $(0, ny-1, k)$）可能被顶盖速度覆盖侧壁 $u=0$，
+        导致底角/顶角副涡偏弱或与 2D 文献偏差。
+  \item \textbf{固体表面}：障碍用 \texttt{solid} + bounce-back，圆柱在格点上呈阶梯形。
+\end{enumerate}
+
+%======================================================================
+\section{演示算例}
+%======================================================================
+
+\subsection{顶盖方腔}
+
+脚本：\texttt{wanphys/examples/fluid\_grid\_lbm\_cavity.py}。
+五壁固定 + 顶盖 $u_x=U_{\mathrm{lid}}$ 驱动主涡；输出中截面（$k=n_z/2$）流线 PNG 与 VTK。
+
+\begin{figure}[H]
+  \centering
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{output/cavity_speed.png}
+    \caption{本仿真结果}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{output/cavity_ref.png}
+    \caption{参考图}
+  \end{subfigure}
+  \caption{顶盖驱动方腔速度流线（中截面 $k=n_z/2$）。
+    参数：默认 $50^3$ 网格，$\nu=0.16667$，$U_{\mathrm{lid}}=0.1$（格子单位），BGK，300 帧（1500 步），$\Rey\approx 30$。}
+  \label{fig:cavity-basic}
+\end{figure}
+
+\subsection{腔体绕障}
+
+脚本：\texttt{fluid\_grid\_lbm\_obstacle.py}。
+中央方柱，柱高 \texttt{mid / high / tall}；每种高度 6 张流线 PNG + 带 \texttt{solid} 的 VTK。
+默认 $64^3$，$\nu=0.16667$，$U_{\mathrm{lid}}=0.1$，顶盖驱动。
+
+\begin{figure}[H]
+  \centering
+  \begin{subfigure}[t]{0.32\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{output/obstacle/mid/stream_xy_z_mid.png}
+    \caption{MID（柱居中）}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.32\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{output/obstacle/high/stream_xy_z_mid.png}
+    \caption{HIGH（底对齐，向上贴顶盖）}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.32\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{output/obstacle/tall/stream_xy_z_mid.png}
+    \caption{TALL（自底至顶）}
+  \end{subfigure}
+  \caption{腔体绕障：侧面 $x$--$y$ 速度流线（障碍 $z$ 向中间切片 \texttt{stream\_xy\_z\_mid}）。
+    参数：$64^3$，$\nu=0.16667$，$U_{\mathrm{lid}}=0.1$，BGK，300 帧（1500 步）。}
+  \label{fig:obstacle-heights}
+\end{figure}
+
+\subsection{通道绕障}
+
+脚本：\texttt{fluid\_grid\_lbm\_channel\_obstacle.py}。
+无穷高圆柱/方柱；俯视图尾迹与 $u_x,u_z$ 剖面。
+默认 $240\times 80\times 80$，$\nu=0.012$，$u_{\mathrm{in}}=0.06$，障碍直径 $D=14$ 格，$\Rey\approx u_{\mathrm{in}} D/\nu \approx 70$。
+
+\begin{figure}[H]
+  \centering
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{output/channel_obstacle/cylinder/fig1_top_view_streamlines.png}
+    \caption{本仿真（圆柱俯视）}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{output/channel_obstacle/channel_ref.png}
+    \caption{参考图}
+  \end{subfigure}
+  \caption{通道绕圆柱：俯视 $|u|$ 填色与 $(u_x,u_z)$ 流线。
+    格子单位：$240\times 80\times 80$，$\nu=0.012$，$u_{\mathrm{in}}=0.06$，$D=14$，300 帧。}
+  \label{fig:channel-ref}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.72\textwidth]{output/channel_obstacle/cylinder/fig2_slice_ux_uz.png}
+  \caption{通道绕圆柱：$y=n_y/2$ 剖面 $u_x$、$u_z$ 曲线（参数同图~\ref{fig:channel-ref}）。}
+  \label{fig:channel-cylinder}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{output/channel_obstacle/box/fig1_top_view_streamlines.png}
+    \caption{方柱：俯视流线}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{output/channel_obstacle/box/fig2_slice_ux_uz.png}
+    \caption{方柱：$u_x$、$u_z$ 剖面曲线}
+  \end{subfigure}
+  \caption{通道绕无穷高方柱（网格与来流参数同图~\ref{fig:channel-cylinder}）。}
+  \label{fig:channel-box}
+\end{figure}
+
+\subsection{BGK / MRT 对比}
+
+脚本：\texttt{fluid\_grid\_lbm\_cavity.py --compare}；参数预设见 \texttt{cavity\_presets.py}。
+雷诺数估计：$\Rey \approx U_{\mathrm{lid}}\,N/\nu$（$N$ 为网格边长格点数）。
+
+\begin{table}[H]
+  \centering
+  \caption{对比预设}
+  \begin{tabular}{@{}lrrrrr@{}}
+    \toprule
+    profile & 网格 & $\nu$ & $U_{\mathrm{lid}}$ & 步数 & $\Rey$ \\
+    \midrule
+    subtle  & $64^3$  & 0.16667 & 0.10 &  800 & $\sim 38$ \\
+    stress  & $64^3$  & 0.025   & 0.16 & 1500 & $\sim 410$ \\
+    contrast& $128^3$ & 0.01024 & 0.42 & 2500 & $\sim 5250$ \\
+    coarse  & $32^3$  & 0.00256 & 0.20 & 2500 & $\sim 2500$ \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\textbf{coarse} 档为答辩推荐：BGK 约在 1600--1700 步后出现 NaN；MRT 2500 步仍稳定。
+\texttt{--compare} 依次跑 BGK 与 MRT，并生成 \texttt{cavity\_diff\_*.png} 差分图
+（BGK 发散时可能无 BGK 的 NPZ，属预期）。
+
+\begin{figure}[H]
+  \centering
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{output/cavity_compare/subtle/cavity_bgk_speed.png}
+    \caption{subtle / BGK}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{output/cavity_compare/subtle/cavity_mrt_speed.png}
+    \caption{subtle / MRT}
+  \end{subfigure}
+  \caption{低 Re 对比（subtle）：$64^3$，$\nu=0.16667$，$U_{\mathrm{lid}}=0.1$，800 步，$\Rey\approx 38$；
+    BGK 与 MRT 宏观场应几乎一致。}
+  \label{fig:compare-subtle}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{output/cavity_compare/stress/cavity_bgk_speed.png}
+    \caption{stress / BGK}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{output/cavity_compare/stress/cavity_mrt_speed.png}
+    \caption{stress / MRT}
+  \end{subfigure}
+  \caption{中 Re 对比（stress）：$64^3$，$\nu=0.025$，$U_{\mathrm{lid}}=0.16$，1500 步，$\Rey\approx 410$。}
+  \label{fig:compare-stress}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{output/cavity_compare/contrast/cavity_bgk_speed.png}
+    \caption{contrast / BGK}
+  \end{subfigure}\hfill
+  \begin{subfigure}[t]{0.48\textwidth}
+    \centering
+    \includegraphics[width=\textwidth]{output/cavity_compare/contrast/cavity_mrt_speed.png}
+    \caption{contrast / MRT}
+  \end{subfigure}
+  \caption{高 Re 细网格（contrast）：$128^3$，$\nu=0.01024$，$U_{\mathrm{lid}}=0.42$，2500 步，$\Rey\approx 5250$。}
+  \label{fig:compare-contrast}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \includegraphics[width=0.72\textwidth]{output/cavity_compare/coarse/cavity_mrt_speed.png}
+  \caption{粗网格高 Re（coarse）：$32^3$，$\nu=0.00256$，$U_{\mathrm{lid}}=0.2$，2500 步，$\Rey\approx 2500$。
+    同参数下 BGK 约 1600+ 步发散（本目录无 BGK 速度图）；MRT 仍稳定，见 \texttt{cavity\_mrt\_speed.png}。}
+  \label{fig:compare-coarse}
+\end{figure}
+
+%======================================================================
+\section{验证与测试}
+%======================================================================
+
+\begin{table}[H]
+  \centering
+  \caption{主要测试}
+  \begin{tabular}{@{}ll@{}}
+    \toprule
+    测试 & 通过标准 \\
+    \midrule
+    \texttt{test\_lbm\_rest.py} & 16$^3\times$100 步，$\max\|\vecu\|<10^{-10}$，$\max|\rho-1|<10^{-6}$ \\
+    \texttt{test\_cavity\_smoke.py} & 32$^3\times$500 步，流动建立，无 NaN \\
+    \texttt{test\_obstacle\_smoke.py} & 绕障不穿透、柱后有 wake \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+终端每 20 帧打印 \texttt{max|u|}、\texttt{near\_lid\_ux}、\texttt{max|rho-1|} 供监控。
+\texttt{test\_final()} 以 NaN/Inf 判定发散；有限但异常的大速度仍可能显示 \texttt{Cavity OK}。
+
+%======================================================================
+\section{不足与后续工作}
+%======================================================================
+
+\begin{itemize}
+  \item 边界：完整 Zou--He、角点格式、通道入口发展段。
+  \item 几何：曲边界 / IBM，改善圆柱阶梯离散。
+  \item MRT：文献完整 $S$ 矩阵；性能优化。
+  \item 验证：与 Ghia 等基准的涡心位置定量对比。
+  \item 外力：碰撞步补全 Guo 源项。
+\end{itemize}
+
+%======================================================================
+\section{结论}
+%======================================================================
+
+本项目在 WanPhys \texttt{fluid\_grid} 框架内实现了完整的 D3Q19 LBM 算法族：
+遵循 Model/State/Solver/Domain 分层与 \texttt{FluidGridSolverBase} 契约，GPU 并行、Pull 迁移、
+六面 BC 与格点障碍均落在 WanPhys 模块内；Newton 仅作示例运行壳。
+基础 BGK 满足课程要求；TRT/MRT 与绕障流体现框架内可扩展性。
+BGK/MRT 对比表明：低 Re 下两者一致；高 Re 粗网格下 MRT 稳定性优于 BGK。
+后续可在 WanPhys 框架内继续完善边界、曲边界耦合与定量验证。
+
+%======================================================================
+\appendix
+\section{常用编译与运行命令}
+%======================================================================
+
+\begin{lstlisting}[language=bash,caption={环境}]
+cd WanPhys-dev
+.venv_lbm/Scripts/Activate.ps1   # Windows
+\end{lstlisting}
+
+\begin{lstlisting}[language=bash,caption={顶盖方腔}]
+python wanphys/examples/fluid_grid_lbm_cavity.py \
+  --viewer null --num-frames 300 --test \
+  --output-dir output/video/cavity
+\end{lstlisting}
+
+\begin{lstlisting}[language=bash,caption={BGK/MRT 对比（答辩推荐 coarse）}]
+python wanphys/examples/fluid_grid_lbm_cavity.py \
+  --viewer null --test --profile coarse --compare \
+  --output-dir output/cavity_compare/coarse
+\end{lstlisting}
+
+\begin{lstlisting}[language=bash,caption={绕障}]
+python wanphys/examples/fluid_grid_lbm_obstacle.py \
+  --viewer null --num-frames 300 --test --obstacle-height all
+python wanphys/examples/fluid_grid_lbm_channel_obstacle.py \
+  --viewer null --num-frames 300 --test --obstacle-mode both
+\end{lstlisting}
+
+\section{参考文献}
+\begin{enumerate}[label={[\arabic*]}]
+  \item Newton Physics Engine: \url{https://github.com/newton-physics/newton}
+  \item Kr\"uger et al., \textit{The Lattice Boltzmann Method: Principles and Practice}.
+  \item taichi\_LBM3D: \url{https://github.com/yjhp1016/taichi_LBM3D}
+  \item 本项目 \texttt{DESIGN.md}, \texttt{LBM演示算例\_详细说明.md}
+\end{enumerate}
+
+\end{document}
