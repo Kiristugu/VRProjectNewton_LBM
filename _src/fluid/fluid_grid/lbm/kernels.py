@@ -415,3 +415,44 @@ def bake_box(
     dist = wp.max(d[0], wp.max(d[1], d[2]))
     if dist <= 0.0:
         solid[i, j, k] = 1
+
+
+@wp.kernel
+def bake_cylinder_z(
+    solid: wp.array3d(dtype=wp.int32),
+    center_x: float,
+    center_y: float,
+    radius: float,
+) -> None:
+    """Infinite cylinder aligned with z through (center_x, center_y) in lattice units."""
+    i, j, k = wp.tid()
+    dx = (float(i) + 0.5) - center_x
+    dy = (float(j) + 0.5) - center_y
+    if dx * dx + dy * dy <= radius * radius:
+        solid[i, j, k] = 1
+
+
+@wp.kernel
+def bake_cylinder_y(
+    solid: wp.array3d(dtype=wp.int32),
+    center_x: float,
+    center_z: float,
+    radius: float,
+) -> None:
+    """Infinite cylinder aligned with y through (center_x, center_z) in lattice units."""
+    i, j, k = wp.tid()
+    dx = (float(i) + 0.5) - center_x
+    dz = (float(k) + 0.5) - center_z
+    if dx * dx + dz * dz <= radius * radius:
+        solid[i, j, k] = 1
+
+
+@wp.kernel
+def bake_solid_j_min(
+    solid: wp.array3d(dtype=wp.int32),
+    j_min: int,
+) -> None:
+    """Mark cells with j >= j_min as solid."""
+    i, j, k = wp.tid()
+    if j >= j_min:
+        solid[i, j, k] = 1

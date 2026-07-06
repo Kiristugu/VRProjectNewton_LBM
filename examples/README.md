@@ -185,54 +185,67 @@ When adding new examples:
 5. **Support `--viewer null`** for headless testing
 6. **Update this README** under appropriate category
 
-## LBM 3D Particle Visualization — From-Scratch Setup
+## LBM 3D Particle Visualization (Rerun)
 
-The `fluid_grid_lbm_particle_vis.py` script requires ``warp-lang``, ``numpy``, and ``rerun-sdk``.  
-No GPU is required — Warp runs on CPU when CUDA is unavailable.
+**Branch:** `Rerun` · **Script:** `wanphys/examples/fluid_grid_lbm_particle_vis.py`
 
-### One-shot environment bootstrap
+Tracer particles are advected through the LBM velocity field (RK2) and logged to
+[Rerun](https://rerun.io) as colored 3D points (speed: blue→red). Scenarios:
+`cavity` / `obstacle` / `channel` — same physics as the headless LBM demos, but
+**real-time 3D** instead of matplotlib PNG / ParaView VTK.
+
+### Dependencies
 
 ```powershell
-# 1. Create virtual environment (requires Python 3.12+)
-python -m venv D:\venv_lbm
+cd D:\Term6\GP\HW\Project\WanPhys-dev
+..\.venv_lbm\Scripts\Activate.ps1   # from WanPhys-dev/
 
-# 2. Activate
-D:\venv_lbm\Scripts\Activate.ps1
-
-# 3. Install dependencies
-pip install warp-lang numpy rerun-sdk
-
-# 4. Verify
-python -c "import warp as wp; wp.init(); print('Warp OK, device:', wp.get_device())"
-python -c "import rerun as rr; print('Rerun OK, version:', rr.__version__)"
-
-# 5. Create wanphys package junction (one-time)
-cmd /c "mklink /J D:\Projects\wanphys D:\Projects\VRProjectNewton_LBM"
+pip install "pyarrow>=18" "rerun-sdk>=0.34"
+python -c "import rerun as rr; print('Rerun OK:', rr.__version__)"
 ```
 
-### Run
+Requires `warp-lang` and `numpy` (already in `.venv_lbm`). CPU-only is fine.
+
+### Run (from `WanPhys-dev/`)
+
+**Live viewer** — spawns the Rerun window automatically:
 
 ```powershell
-# Activate environment (skip if already active)
-D:\venv_lbm\Scripts\Activate.ps1
-cd D:\Projects\VRProjectNewton_LBM
+cd D:\Term6\GP\HW\Project\WanPhys-dev
 
-# ── Cavity flow (default) ─────────────────────────────────
-# Record to .rrd file, then play back (recommended workflow)
-python examples/fluid_grid_lbm_particle_vis.py --scenario cavity --grid-size 50 --num-frames 200 --record output/cavity_particles.rrd
-python -m rerun output/cavity_particles.rrd
+# Cavity (default)
+python wanphys/examples/fluid_grid_lbm_particle_vis.py `
+  --scenario cavity --grid-size 50 --num-frames 200
 
-# Live viewer (spawns Rerun window automatically)
-python examples/fluid_grid_lbm_particle_vis.py --scenario cavity --grid-size 40 --num-frames 150
+# Obstacle (box in cavity center)
+python wanphys/examples/fluid_grid_lbm_particle_vis.py `
+  --scenario obstacle --grid-size 64 --num-frames 300
 
-# ── Obstacle flow ─────────────────────────────────────────
-python examples/fluid_grid_lbm_particle_vis.py --scenario obstacle --grid-size 50 --num-frames 200 --record output/obstacle_particles.rrd
+# Channel (Kármán vortex street)
+python wanphys/examples/fluid_grid_lbm_particle_vis.py `
+  --scenario channel --grid-size 64 --num-frames 400 --u-inlet 0.08
+```
 
-# ── Channel flow (Kármán vortex street!) ──────────────────
-python examples/fluid_grid_lbm_particle_vis.py --scenario channel --grid-size 64 --num-frames 400 --u-inlet 0.08 --record output/channel_particles.rrd
+**Record to `.rrd`** (recommended for demos / slow GPUs) — then replay offline:
 
-# ── Fine detail (more particles, larger grid) ─────────────
-python examples/fluid_grid_lbm_particle_vis.py --scenario cavity --grid-size 64 --particle-count 10000 --num-frames 300 --record output/cavity_fine.rrd
+```powershell
+python wanphys/examples/fluid_grid_lbm_particle_vis.py `
+  --scenario cavity --grid-size 50 --num-frames 200 `
+  --record output/cavity_particles.rrd
+
+rerun output/cavity_particles.rrd
+# or: python -m rerun output/cavity_particles.rrd
+```
+
+**Connect to an already-running Rerun server** (optional):
+
+```powershell
+# Terminal 1
+rerun
+
+# Terminal 2
+python wanphys/examples/fluid_grid_lbm_particle_vis.py `
+  --scenario cavity --rerun-addr 127.0.0.1:9876
 ```
 
 ### Parameters
@@ -240,62 +253,63 @@ python examples/fluid_grid_lbm_particle_vis.py --scenario cavity --grid-size 64 
 | Parameter | Default | Description |
 |---|---|---|
 | `--scenario` | `cavity` | `cavity` / `obstacle` / `channel` |
-| `--grid-size` | `50` | Cubic grid resolution (higher = finer but slower) |
-| `--particle-count` | `5000` | Number of tracer particles |
+| `--grid-size` | `50` | Cubic grid resolution |
+| `--particle-count` | `5000` | Tracer particles |
 | `--num-frames` | `200` | Output frames |
 | `--lbm-substeps` | `5` | LBM steps per frame |
 | `--warmup-steps` | `0` | LBM steps before particles appear |
 | `--nu` | `0.16667` | Kinematic viscosity (lattice units) |
-| `--u-lid` | `0.1` | Lid velocity (cavity/obstacle scenarios) |
-| `--u-inlet` | `0.06` | Inlet velocity (channel scenario) |
-| `--particle-max-life` | `200` | Max particle lifetime in LBM steps |
-| `--record` | *(empty)* | Path to save .rrd recording (disables live viewer) |
-| `--rerun-addr` | *(empty)* | Connect to remote rerun viewer (e.g. `127.0.0.1:9876`) |
+| `--u-lid` | `0.1` | Lid velocity (cavity / obstacle) |
+| `--u-inlet` | `0.06` | Inlet velocity (channel) |
+| `--particle-max-life` | `200` | Max particle lifetime (LBM steps) |
+| `--record` | *(empty)* | Save `.rrd` file (no live window) |
+| `--rerun-addr` | *(empty)* | e.g. `127.0.0.1:9876` — connect to external viewer |
 
-### Rerun Viewer Controls
+### Rerun viewer controls
 
 | Action | Control |
 |---|---|
 | Rotate | Left-drag |
 | Pan | Middle-drag or Shift+Left-drag |
 | Zoom | Scroll wheel |
-| Timeline scrub | Bottom timeline slider |
+| Timeline | Bottom slider |
 | Play / Pause | Space |
-| Reset view | Double-click 3D view |
 
-### Headless (Non-Visual) LBM Examples
+### Headless LBM examples (no Rerun)
 
-For validation without visualization:
-
-```powershell
-# M2 cavity smoke test
-python examples/fluid_grid_lbm_cavity.py --viewer null --num-frames 100 --test --grid-size 50
-
-# M2 + VTK export for ParaView
-python examples/fluid_grid_lbm_cavity.py --viewer null --num-frames 100 --test --export-vtk output/cavity.vtk
-
-# M2 + matplotlib streamplot PNG
-python examples/fluid_grid_lbm_cavity.py --viewer null --num-frames 100 --test --save-slice output/stream.png
-
-# M3 obstacle (all three heights)
-python examples/fluid_grid_lbm_obstacle.py --viewer null --grid-size 64 --num-frames 100 --test --obstacle-height all
-
-# M3 channel obstacle (cylinder + box)
-python examples/fluid_grid_lbm_channel_obstacle.py --viewer null --num-frames 600 --test --obstacle-mode both
-```
-
-### Run Tests
+For PNG / VTK validation without visualization:
 
 ```powershell
-cd D:\Projects\VRProjectNewton_LBM
+cd D:\Term6\GP\HW\Project\WanPhys-dev
 
-python tests/test_lbm_rest.py          # M1 rest fluid
-python tests/test_equilibrium.py        # Equilibrium distribution
-python tests/test_cavity_smoke.py       # M2 cavity smoke
-python tests/test_obstacle_smoke.py     # M3 obstacle smoke
-python tests/test_lbm_vtk_export.py     # VTK export
-python tests/test_lbm_import.py         # Import / unit tests
+python wanphys/examples/fluid_grid_lbm_cavity.py `
+  --viewer null --num-frames 300 --test --grid-size 50
+
+python wanphys/examples/fluid_grid_lbm_obstacle.py `
+  --viewer null --num-frames 300 --test --obstacle-height all
+
+python wanphys/examples/fluid_grid_lbm_channel_obstacle.py `
+  --viewer null --num-frames 300 --test --obstacle-mode both
 ```
+
+### LBM tests
+
+```powershell
+cd D:\Term6\GP\HW\Project\WanPhys-dev
+python wanphys/tests/test_lbm_rest.py
+python wanphys/tests/test_cavity_smoke.py
+python wanphys/tests/test_obstacle_smoke.py
+```
+
+### LBM / Rerun troubleshooting
+
+| Symptom | Fix |
+|---|---|
+| `No module named 'rerun'` | `pip install "pyarrow>=18" "rerun-sdk>=0.34"` |
+| `ResolutionImpossible` installing rerun-sdk | Do **not** use bare `pip install rerun-sdk` — old versions need `numpy<2`. Pin: `pip install "pyarrow>=18" "rerun-sdk>=0.34"` |
+| Rerun window does not open | Use `--record output/xxx.rrd`, then `rerun output/xxx.rrd` |
+| Very slow | Lower `--grid-size` (32–40) or `--particle-count` (2000) |
+| First run slow on CPU | Warp kernel compile (~30s–2min); later runs use cache |
 
 ## Troubleshooting
 
@@ -318,11 +332,8 @@ uv sync --extra dev --extra examples
 
 ### LBM / Rerun-specific
 
-| Symptom | Fix |
-|---|---|
-| `No module named 'wanphys'` | Create the junction: `cmd /c "mklink /J D:\Projects\wanphys D:\Projects\VRProjectNewton_LBM"` |
-| `No module named 'warp'` | `pip install warp-lang` |
-| `No module named 'rerun'` | `pip install rerun-sdk` |
-| Rerun window won't open | Use `--record output/xxx.rrd`, then view with `python -m rerun output/xxx.rrd` |
-| Simulation is very slow | Reduce `--grid-size` (e.g. 32), reduce `--particle-count` (e.g. 2000), or use `--device cpu` explicitly |
-| `Kernel compile timeout` on CPU | First run compiles Warp kernels (~30s – 2min); subsequent runs use cache and are instant |
+| `No module named 'rerun'` | `pip install "pyarrow>=18" "rerun-sdk>=0.34"` |
+| `ResolutionImpossible` installing rerun-sdk | Do **not** use bare `pip install rerun-sdk` — old versions need `numpy<2`. Pin: `pip install "pyarrow>=18" "rerun-sdk>=0.34"` |
+| Rerun window won't open | Use `--record output/xxx.rrd`, then `rerun output/xxx.rrd` |
+| Simulation is very slow | Reduce `--grid-size` or `--particle-count` |
+| `Kernel compile timeout` on CPU | First run compiles Warp kernels; subsequent runs use cache |

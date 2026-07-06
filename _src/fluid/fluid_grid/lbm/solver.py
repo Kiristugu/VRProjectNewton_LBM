@@ -222,12 +222,75 @@ class FluidGridLbmSolver(FluidGridSolverBase):
         self.model.bc_velocity = u_tuple
         self._refresh_bc_velocities()
 
+    def configure_channel_flow(self, u_in: float) -> None:
+        """Horizontal channel: velocity inlet (x=0), pressure outlet (x=nx-1), no-slip y walls, periodic z."""
+        u_tuple = (float(u_in), 0.0, 0.0)
+        zero = (0.0, 0.0, 0.0)
+        self.model.bc_x_left = 2
+        self.model.bc_x_right = 1
+        self.model.bc_y_left = 2
+        self.model.bc_y_right = 2
+        self.model.bc_z_left = 0
+        self.model.bc_z_right = 0
+        self.model.bc_vel_x_left = u_tuple
+        self.model.bc_vel_x_right = zero
+        self.model.bc_vel_y_left = zero
+        self.model.bc_vel_y_right = zero
+        self.model.bc_vel_z_left = zero
+        self.model.bc_vel_z_right = zero
+        self.model.bc_velocity = u_tuple
+        self.model.bc_rho = 1.0
+        self._refresh_bc_velocities()
+
+    def init_uniform_flow(self, state: FluidGridLbmState, rho: float, u: wp.vec3) -> None:
+        """Initialize uniform flow at equilibrium (channel inflow IC)."""
+        self.init_uniform(state, rho, u)
+
     def bake_box(self, state: FluidGridLbmState, center: wp.vec3, half_extents: wp.vec3) -> None:
         """Bake axis-aligned box obstacle into ``state.solid``."""
         wp.launch(
             kernels.bake_box,
             dim=self._grid_dim,
             inputs=[state.solid, center, half_extents],
+            device=self.device,
+        )
+
+    def bake_cylinder_z(
+        self,
+        state: FluidGridLbmState,
+        center_x: float,
+        center_y: float,
+        radius: float,
+    ) -> None:
+        """Bake a z-aligned cylinder (2D circle extruded through all k layers)."""
+        wp.launch(
+            kernels.bake_cylinder_z,
+            dim=self._grid_dim,
+            inputs=[state.solid, center_x, center_y, radius],
+            device=self.device,
+        )
+
+    def bake_cylinder_y(
+        self,
+        state: FluidGridLbmState,
+        center_x: float,
+        center_z: float,
+        radius: float,
+    ) -> None:
+        """Bake a y-aligned cylinder (infinite-height pillar, circular cross-section in x-z)."""
+        wp.launch(
+            kernels.bake_cylinder_y,
+            dim=self._grid_dim,
+            inputs=[state.solid, center_x, center_z, radius],
+            device=self.device,
+        )
+
+    def bake_solid_j_min(self, state: FluidGridLbmState, j_min: int) -> None:
+        """Mark cells with j >= j_min as solid."""
+        wp.launch(
+            kernels.bake_solid_j_min,
+            dim=self._grid_dim,
+            inputs=[state.solid, j_min],
             device=self.device,
         )
 
